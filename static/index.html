@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nomalar.uz — muhim daqiqalaringiz uchun noma</title>
+<meta name="description" content="To'y, tug'ilgan kun, eslatma va boshqa tadbirlaringiz uchun raqamli noma yarating.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="seal" aria-hidden="true">
+  <svg viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="46"/>
+    <path d="M50 20 L58 42 L82 42 L62 56 L70 78 L50 64 L30 78 L38 56 L18 42 L42 42 Z"/>
+  </svg>
+</div>
+
+<!-- 1. KIRISH EKRANI -->
+<section id="screen-intro" class="screen active">
+  <div class="intro-wrap">
+    <p class="eyebrow">raqamli noma</p>
+    <h1 class="brand-title">Nomalar<span class="dot">.</span>uz</h1>
+    <p class="intro-sub">Muhim daqiqalaringiz uchun — bir necha daqiqada.</p>
+    <button class="btn-primary" id="btn-start">Boshlash</button>
+  </div>
+</section>
+
+<!-- 2. TUSHUNTIRISH EKRANI -->
+<section id="screen-explain" class="screen">
+  <div class="explain-wrap">
+    <div class="explain-slide" data-index="0">
+      <span class="explain-num">01</span>
+      <h2>Turini tanlaysiz</h2>
+      <p>To'y, tug'ilgan kun, eslatma va yana boshqa 7 xil noma turidan birini tanlaysiz.</p>
+    </div>
+    <div class="explain-slide" data-index="1">
+      <span class="explain-num">02</span>
+      <h2>Ma'lumot kiritasiz</h2>
+      <p>Ism, sana, manzil kabi kerakli ma'lumotlarni oddiy formaga yozasiz.</p>
+    </div>
+    <div class="explain-slide" data-index="2">
+      <span class="explain-num">03</span>
+      <h2>Link olasiz</h2>
+      <p>Tayyor chiroyli sahifangiz uchun link yaratiladi — uni istalgan joyga yuborasiz.</p>
+    </div>
+    <div class="explain-dots">
+      <span class="dot-i active" data-i="0"></span>
+      <span class="dot-i" data-i="1"></span>
+      <span class="dot-i" data-i="2"></span>
+    </div>
+    <button class="btn-primary" id="btn-continue">Davom etish</button>
+  </div>
+</section>
+
+<!-- 3. SHABLON TANLASH EKRANI -->
+<section id="screen-templates" class="screen">
+  <div class="templates-wrap">
+    <p class="eyebrow">1-qadam</p>
+    <h2 class="section-title">Qanday noma kerak?</h2>
+    <div class="template-grid">
+      <button class="tpl-card" data-tpl="toy">
+        <span class="tpl-mark">01</span>
+        <span class="tpl-name">To'y taklifnomasi</span>
+      </button>
+      <button class="tpl-card" data-tpl="tugilgan-kun">
+        <span class="tpl-mark">02</span>
+        <span class="tpl-name">Tug'ilgan kun</span>
+      </button>
+      <button class="tpl-card" data-tpl="tushuntirish">
+        <span class="tpl-mark">03</span>
+        <span class="tpl-name">Tushuntirish xati</span>
+      </button>
+      <button class="tpl-card" data-tpl="eslatma">
+        <span class="tpl-mark">04</span>
+        <span class="tpl-name">Eslatma xati</span>
+      </button>
+      <button class="tpl-card" data-tpl="beshik">
+        <span class="tpl-mark">05</span>
+        <span class="tpl-name">Beshik to'yi</span>
+      </button>
+      <button class="tpl-card" data-tpl="bitiruv">
+        <span class="tpl-mark">06</span>
+        <span class="tpl-name">Bitiruv marosimi</span>
+      </button>
+      <button class="tpl-card" data-tpl="rasmiy">
+        <span class="tpl-mark">07</span>
+        <span class="tpl-name">Rasmiy tadbir</span>
+      </button>
+    </div>
+    <p class="next-note" id="next-note">Tanlang — keyingi bosqichda forma ochiladi.</p>
+  </div>
+</section>
+
+<script src="/static/script.js"></script>
+</body>
+</html>
