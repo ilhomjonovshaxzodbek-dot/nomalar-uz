@@ -1,0 +1,203 @@
+:root {
+  --ink: #1B2430;
+  --ink-deep: #131A24;
+  --parchment: #F3ECD9;
+  --parchment-dim: #E4DABF;
+  --brass: #B8905A;
+  --brass-light: #D8B888;
+  --text-on-ink: #EFE8D6;
+  --text-on-ink-dim: #9AA4B2;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--ink);
+  color: var(--text-on-ink);
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+.eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--brass-light);
+  margin: 0 0 12px;
+}
+
+/* --- Wax seal signature element --- */
+.seal {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 34px;
+  height: 34px;
+  opacity: 0.9;
+  z-index: 10;
+}
+.seal svg { width: 100%; height: 100%; }
+.seal circle { fill: var(--brass); }
+.seal path { fill: var(--ink); }
+
+/* --- Screens --- */
+.screen {
+  display: none;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 24px 48px;
+}
+.screen.active { display: flex; }
+
+/* --- Intro --- */
+.intro-wrap {
+  text-align: center;
+  max-width: 420px;
+  animation: rise 0.8s ease both;
+}
+.brand-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 600;
+  font-size: 56px;
+  margin: 0 0 12px;
+  color: var(--parchment);
+}
+.brand-title .dot { color: var(--brass); }
+.intro-sub {
+  color: var(--text-on-ink-dim);
+  font-size: 15px;
+  margin: 0 0 40px;
+}
+
+.btn-primary {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  background: var(--brass);
+  color: var(--ink-deep);
+  border: none;
+  border-radius: 2px;
+  padding: 14px 36px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+.btn-primary:hover { background: var(--brass-light); }
+.btn-primary:active { transform: scale(0.98); }
+.btn-primary:focus-visible { outline: 2px solid var(--parchment); outline-offset: 3px; }
+
+/* --- Explain --- */
+.explain-wrap {
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+.explain-slide {
+  display: none;
+  animation: rise 0.5s ease both;
+}
+.explain-slide.active { display: block; }
+.explain-num {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 15px;
+  color: var(--brass-light);
+  letter-spacing: 0.1em;
+}
+.explain-slide h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 600;
+  font-size: 30px;
+  margin: 8px 0 12px;
+  color: var(--parchment);
+}
+.explain-slide p {
+  color: var(--text-on-ink-dim);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0 0 32px;
+}
+.explain-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+.dot-i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-on-ink-dim);
+  opacity: 0.4;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+.dot-i.active { opacity: 1; background: var(--brass); }
+
+/* --- Templates --- */
+.templates-wrap {
+  max-width: 460px;
+  width: 100%;
+  text-align: center;
+}
+.section-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 600;
+  font-size: 32px;
+  margin: 0 0 32px;
+  color: var(--parchment);
+}
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.tpl-card {
+  font-family: 'Inter', sans-serif;
+  background: transparent;
+  border: 1px solid rgba(239, 232, 214, 0.16);
+  border-radius: 3px;
+  padding: 22px 14px;
+  color: var(--text-on-ink);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s ease, background 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tpl-card:hover {
+  border-color: var(--brass);
+  background: rgba(184, 144, 90, 0.08);
+}
+.tpl-card.selected {
+  border-color: var(--brass);
+  background: rgba(184, 144, 90, 0.14);
+}
+.tpl-mark {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20px;
+  color: var(--brass-light);
+}
+.tpl-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+.next-note {
+  margin-top: 28px;
+  font-size: 13px;
+  color: var(--text-on-ink-dim);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-wrap, .explain-slide { animation: none; }
+}
