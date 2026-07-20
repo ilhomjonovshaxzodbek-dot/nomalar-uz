@@ -140,8 +140,9 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 .form-wrap .section-title { text-align: center; }
 .app-form { display: flex; flex-direction: column; gap: 16px; }
 .app-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-on-ink-dim); }
-.app-form input { font-family: 'Inter', sans-serif; font-size: 14px; background: rgba(239, 232, 214, 0.05); border: 1px solid rgba(239, 232, 214, 0.16); border-radius: 3px; padding: 11px 12px; color: var(--text-on-ink); }
-.app-form input:focus { outline: none; border-color: var(--brass); }
+.app-form input, .app-form textarea { font-family: 'Inter', sans-serif; font-size: 14px; background: rgba(239, 232, 214, 0.05); border: 1px solid rgba(239, 232, 214, 0.16); border-radius: 3px; padding: 11px 12px; color: var(--text-on-ink); }
+.app-form input:focus, .app-form textarea:focus { outline: none; border-color: var(--brass); }
+.app-form textarea { font-family: inherit; resize: vertical; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-error { color: #D97757; font-size: 13px; min-height: 18px; margin: 0; }
 .result-wrap { max-width: 380px; width: 100%; text-align: center; }
@@ -261,6 +262,23 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
   </div>
 </section>
 
+<section id="screen-form-tushuntirish" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Tushuntirish xati</h2>
+    <form id="form-tushuntirish" class="app-form">
+      <label>Sarlavha<input type="text" name="sarlavha" placeholder="Tushuntirish xati" required></label>
+      <label>Kimga<input type="text" name="kimga" placeholder="Maktab direktoriga / Bo'lim boshlig'iga" required></label>
+      <label>Matn<textarea name="matn" rows="6" placeholder="Xat matnini shu yerga yozing..." required></textarea></label>
+      <label>Kimdan (imzo)<input type="text" name="kimdan" placeholder="Ism Familiya" required></label>
+      <label>Sana<input type="date" name="sana" required></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-tushuntirish-error"></p>
+    </form>
+  </div>
+</section>
+
 
 <section id="screen-result" class="screen">
   <div class="result-wrap">
@@ -325,6 +343,7 @@ tplCards.forEach(card => {
     const tpl = card.dataset.tpl;
     if (tpl === 'toy') { showScreen('screen-form-toy'); }
     else if (tpl === 'tugilgan-kun') { showScreen('screen-form-tugilgan-kun'); }
+    else if (tpl === 'tushuntirish') { showScreen('screen-form-tushuntirish'); }
     else { nextNote.textContent = `"${tplName}" formasi tez orada qo'shiladi.`; }
   });
 });
@@ -361,6 +380,7 @@ function setupForm(formId, errorId, apiPath) {
 
 setupForm('form-toy', 'form-toy-error', '/api/create/toy');
 setupForm('form-tugilgan-kun', 'form-tugilgan-kun-error', '/api/create/tugilgan-kun');
+setupForm('form-tushuntirish', 'form-tushuntirish-error', '/api/create/tushuntirish');
 
 document.getElementById('btn-copy').addEventListener('click', () => {
   const input = document.getElementById('result-link');
@@ -448,6 +468,38 @@ def create_birthday(form: BirthdayForm):
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
+# ============================================================
+#  TUSHUNTIRISH XATI — FORMA VA NATIJA
+# ============================================================
+
+class ExplanationForm(BaseModel):
+    sarlavha: str
+    kimga: str
+    matn: str
+    kimdan: str
+    sana: str
+
+
+@app.post("/api/create/tushuntirish")
+def create_explanation(form: ExplanationForm):
+    if not form.sarlavha.strip() or not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip():
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.kimdan}-xati")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("tushuntirish", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
 @app.get("/n/{slug}", response_class=HTMLResponse)
 def view_page(slug: str):
     conn = sqlite3.connect(DB_PATH)
@@ -466,6 +518,8 @@ def view_page(slug: str):
         return render_toy_page(data)
     if template_type == "tugilgan-kun":
         return render_birthday_page(data)
+    if template_type == "tushuntirish":
+        return render_explanation_page(data)
 
     raise HTTPException(status_code=404, detail="Noma turi topilmadi")
 
@@ -613,6 +667,69 @@ def render_birthday_page(data: dict) -> str:
     <p class="label" style="margin-top:14px;">Manzil</p>
     <p>{manzil}</p>
     {map_html}
+  </div>
+</div>
+</body>
+</html>"""
+
+
+def escape_html(text: str) -> str:
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def render_explanation_page(data: dict) -> str:
+    sarlavha = escape_html(data["sarlavha"])
+    kimga = escape_html(data["kimga"])
+    matn = escape_html(data["matn"]).replace("\n", "<br>")
+    kimdan = escape_html(data["kimdan"])
+    sana = data["sana"]
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{sarlavha}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: #EAECEF;
+    color: #1F2937;
+    font-family: 'Source Serif 4', serif;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 48px 20px;
+  }}
+  .paper {{
+    max-width: 560px; width: 100%;
+    background: #FFFFFF;
+    padding: 48px 44px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    border-top: 4px solid #2B3A55;
+  }}
+  .letterhead {{ font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #6B7686; margin: 0 0 32px; }}
+  .title {{ font-size: 26px; font-weight: 600; margin: 0 0 28px; color: #2B3A55; }}
+  .addressee {{ font-family: 'Inter', sans-serif; font-size: 13px; color: #6B7686; margin: 0 0 24px; }}
+  .body-text {{ font-size: 16px; line-height: 1.75; color: #2B3340; margin: 0 0 40px; }}
+  .signoff {{ font-family: 'Inter', sans-serif; font-size: 13px; color: #6B7686; text-align: right; border-top: 1px solid #E4E7EC; padding-top: 20px; }}
+  .signoff strong {{ display: block; font-family: 'Source Serif 4', serif; font-size: 16px; color: #2B3A55; margin-bottom: 2px; }}
+</style>
+</head>
+<body>
+<div class="paper">
+  <p class="letterhead">Nomalar.uz &middot; Rasmiy xat</p>
+  <h1 class="title">{sarlavha}</h1>
+  <p class="addressee">Kimga: {kimga}</p>
+  <p class="body-text">{matn}</p>
+  <div class="signoff">
+    <strong>{kimdan}</strong>
+    {sana}
   </div>
 </div>
 </body>
