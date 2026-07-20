@@ -357,9 +357,74 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 </section>
 
 
+<section id="screen-form-beshik" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Beshik to'yi</h2>
+    <form id="form-beshik" class="app-form">
+      <label>Chaqaloq ismi<input type="text" name="chaqaloq" placeholder="Sardor" required></label>
+      <label>Ota-ona ismi<input type="text" name="otaona" placeholder="Aziz va Nilufar" required></label>
+      <div class="row-2">
+        <label>Marosim sanasi<input type="date" name="sana" required></label>
+        <label>Vaqt<input type="time" name="vaqt" required></label>
+      </div>
+      <label>Manzil<input type="text" name="manzil" placeholder="Toshkent, uy manzili" required></label>
+      <label>Xarita havolasi (ixtiyoriy)<input type="url" name="xarita_link" placeholder="https://maps.google.com/..."></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-beshik-error"></p>
+    </form>
+  </div>
+</section>
+
+
+<section id="screen-form-bitiruv" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Bitiruv marosimi</h2>
+    <form id="form-bitiruv" class="app-form">
+      <label>Bitiruvchi ismi<input type="text" name="ism" placeholder="Sardor Aliyev" required></label>
+      <label>Ta'lim muassasasi<input type="text" name="muassasa" placeholder="21-maktab / TATU" required></label>
+      <div class="row-2">
+        <label>Marosim sanasi<input type="date" name="sana" required></label>
+        <label>Vaqt<input type="time" name="vaqt" required></label>
+      </div>
+      <label>Manzil<input type="text" name="manzil" placeholder="Aktlar zali, manzil" required></label>
+      <label>Xarita havolasi (ixtiyoriy)<input type="url" name="xarita_link" placeholder="https://maps.google.com/..."></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-bitiruv-error"></p>
+    </form>
+  </div>
+</section>
+
+
+<section id="screen-form-rasmiy" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Rasmiy tadbir</h2>
+    <form id="form-rasmiy" class="app-form">
+      <label>Tadbir nomi<input type="text" name="tadbir" placeholder="Yillik konferensiya" required></label>
+      <label>Tashkilotchi<input type="text" name="tashkilotchi" placeholder="Kompaniya nomi" required></label>
+      <div class="row-2">
+        <label>Sana<input type="date" name="sana" required></label>
+        <label>Vaqt<input type="time" name="vaqt" required></label>
+      </div>
+      <label>Manzil<input type="text" name="manzil" placeholder="Konferensiya zali, manzil" required></label>
+      <label>Xarita havolasi (ixtiyoriy)<input type="url" name="xarita_link" placeholder="https://maps.google.com/..."></label>
+      <label>Qisqa tavsif (ixtiyoriy)<textarea name="tavsif" rows="3" placeholder="Tadbir haqida qisqacha..."></textarea></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-rasmiy-error"></p>
+    </form>
+  </div>
+</section>
+
+
 <section id="screen-result" class="screen">
   <div class="result-wrap">
     <p class="eyebrow">Tayyor</p>
+
     <h2 class="section-title">Noma yaratildi</h2>
     <p class="result-sub">Havolani mehmonlaringizga yuboring:</p>
     <div class="result-link-box">
@@ -425,6 +490,9 @@ tplCards.forEach(card => {
     else if (tpl === 'kafolat') { showScreen('screen-form-kafolat'); }
     else if (tpl === 'ota-ona-kafolat') { showScreen('screen-form-ota-ona-kafolat'); }
     else if (tpl === 'tugilgan-kun-tabrik') { showScreen('screen-form-tugilgan-kun-tabrik'); }
+    else if (tpl === 'beshik') { showScreen('screen-form-beshik'); }
+    else if (tpl === 'bitiruv') { showScreen('screen-form-bitiruv'); }
+    else if (tpl === 'rasmiy') { showScreen('screen-form-rasmiy'); }
     else { nextNote.textContent = `"${tplName}" formasi tez orada qo'shiladi.`; }
   });
 });
@@ -466,6 +534,9 @@ setupForm('form-eslatma', 'form-eslatma-error', '/api/create/eslatma');
 setupForm('form-kafolat', 'form-kafolat-error', '/api/create/kafolat');
 setupForm('form-ota-ona-kafolat', 'form-ota-ona-kafolat-error', '/api/create/ota-ona-kafolat');
 setupForm('form-tugilgan-kun-tabrik', 'form-tugilgan-kun-tabrik-error', '/api/create/tugilgan-kun-tabrik');
+setupForm('form-beshik', 'form-beshik-error', '/api/create/beshik');
+setupForm('form-bitiruv', 'form-bitiruv-error', '/api/create/bitiruv');
+setupForm('form-rasmiy', 'form-rasmiy-error', '/api/create/rasmiy');
 
 document.getElementById('btn-copy').addEventListener('click', () => {
   const input = document.getElementById('result-link');
@@ -713,6 +784,106 @@ def create_birthday_greeting(form: BirthdayGreetingForm):
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
+# ============================================================
+#  BESHIK TO'YI — FORMA VA NATIJA
+# ============================================================
+
+class CradleForm(BaseModel):
+    chaqaloq: str
+    otaona: str
+    sana: str
+    vaqt: str
+    manzil: str
+    xarita_link: str = ""
+
+
+@app.post("/api/create/beshik")
+def create_cradle(form: CradleForm):
+    if not form.chaqaloq.strip() or not form.otaona.strip() or not form.sana or not form.manzil.strip():
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.chaqaloq}-beshik-toyi")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("beshik", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
+# ============================================================
+#  BITIRUV MAROSIMI — FORMA VA NATIJA
+# ============================================================
+
+class GraduationForm(BaseModel):
+    ism: str
+    muassasa: str
+    sana: str
+    vaqt: str
+    manzil: str
+    xarita_link: str = ""
+
+
+@app.post("/api/create/bitiruv")
+def create_graduation(form: GraduationForm):
+    if not form.ism.strip() or not form.muassasa.strip() or not form.sana or not form.manzil.strip():
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.ism}-bitiruv")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("bitiruv", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
+# ============================================================
+#  RASMIY TADBIR — FORMA VA NATIJA
+# ============================================================
+
+class OfficialEventForm(BaseModel):
+    tadbir: str
+    tashkilotchi: str
+    sana: str
+    vaqt: str
+    manzil: str
+    xarita_link: str = ""
+    tavsif: str = ""
+
+
+@app.post("/api/create/rasmiy")
+def create_official_event(form: OfficialEventForm):
+    if not form.tadbir.strip() or not form.tashkilotchi.strip() or not form.sana or not form.manzil.strip():
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.tadbir}")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("rasmiy", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
 @app.get("/n/{slug}", response_class=HTMLResponse)
 def view_page(slug: str):
     conn = sqlite3.connect(DB_PATH)
@@ -741,6 +912,12 @@ def view_page(slug: str):
         return render_parent_guarantee_page(data)
     if template_type == "tugilgan-kun-tabrik":
         return render_birthday_greeting_page(data)
+    if template_type == "beshik":
+        return render_cradle_page(data)
+    if template_type == "bitiruv":
+        return render_graduation_page(data)
+    if template_type == "rasmiy":
+        return render_official_event_page(data)
 
     raise HTTPException(status_code=404, detail="Noma turi topilmadi")
 
@@ -1192,6 +1369,203 @@ def render_birthday_greeting_page(data: dict) -> str:
   <p class="kimga">{kimga}</p>
   <p class="tabrik">{tabrik}</p>
   <p class="kimdan">— {kimdan}</p>
+</div>
+</body>
+</html>"""
+
+
+def render_cradle_page(data: dict) -> str:
+    chaqaloq = escape_html(data["chaqaloq"])
+    otaona = escape_html(data["otaona"])
+    sana = data["sana"]
+    vaqt = data["vaqt"]
+    manzil = escape_html(data["manzil"])
+    xarita_link = data.get("xarita_link") or ""
+
+    map_html = ""
+    if xarita_link:
+        map_html = f'<a class="map-link" href="{xarita_link}" target="_blank" rel="noopener">Manzilni xaritada ko\'rish</a>'
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{chaqaloq} — beshik to'yi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: linear-gradient(180deg, #DCEEFB 0%, #F3E6F5 100%);
+    color: #4A4560;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 60px 20px;
+  }}
+  .card {{
+    max-width: 400px; width: 100%; text-align: center;
+    background: rgba(255,255,255,0.85);
+    border-radius: 26px;
+    padding: 42px 30px;
+    box-shadow: 0 16px 40px rgba(100,100,160,0.14);
+  }}
+  .icon {{ font-size: 28px; margin-bottom: 12px; }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #8E7CC3; margin: 0 0 14px; }}
+  .name {{ font-family: 'Quicksand', sans-serif; font-weight: 600; font-size: 30px; color: #6E5A9E; margin: 0 0 6px; }}
+  .parents {{ font-size: 14px; color: #7A7291; margin: 0 0 28px; }}
+  .details {{ border-top: 1px dashed #D6C9E8; padding-top: 24px; }}
+  .details p {{ margin: 6px 0; font-size: 15px; }}
+  .details .label {{ font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #8E7CC3; }}
+  .map-link {{ display: inline-block; margin-top: 18px; font-size: 13px; color: #6E5A9E; text-decoration: underline; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">🌙✨</div>
+  <p class="eyebrow">Beshik to'yi</p>
+  <p class="name">{chaqaloq}</p>
+  <p class="parents">{otaona} oilasidan</p>
+  <div class="details">
+    <p class="label">Sana va vaqt</p>
+    <p>{sana} &middot; {vaqt}</p>
+    <p class="label" style="margin-top:14px;">Manzil</p>
+    <p>{manzil}</p>
+    {map_html}
+  </div>
+</div>
+</body>
+</html>"""
+
+
+def render_graduation_page(data: dict) -> str:
+    ism = escape_html(data["ism"])
+    muassasa = escape_html(data["muassasa"])
+    sana = data["sana"]
+    vaqt = data["vaqt"]
+    manzil = escape_html(data["manzil"])
+    xarita_link = data.get("xarita_link") or ""
+
+    map_html = ""
+    if xarita_link:
+        map_html = f'<a class="map-link" href="{xarita_link}" target="_blank" rel="noopener">Manzilni xaritada ko\'rish</a>'
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{ism} — bitiruv marosimi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: #0F1B3C;
+    color: #E7E9F2;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 60px 20px;
+  }}
+  .card {{
+    max-width: 420px; width: 100%; text-align: center;
+    border: 1px solid #D4AF37;
+    padding: 42px 32px;
+  }}
+  .icon {{ font-size: 30px; margin-bottom: 12px; }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #D4AF37; margin: 0 0 16px; }}
+  .name {{ font-family: 'Playfair Display', serif; font-weight: 700; font-size: 30px; color: #FFFFFF; margin: 0 0 8px; }}
+  .muassasa {{ font-size: 14px; color: #A9B0C6; margin: 0 0 28px; }}
+  .details {{ border-top: 1px solid rgba(212,175,55,0.3); padding-top: 24px; }}
+  .details p {{ margin: 6px 0; font-size: 15px; }}
+  .details .label {{ font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #D4AF37; }}
+  .map-link {{ display: inline-block; margin-top: 18px; font-size: 13px; color: #D4AF37; text-decoration: underline; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">🎓</div>
+  <p class="eyebrow">Bitiruv marosimi</p>
+  <p class="name">{ism}</p>
+  <p class="muassasa">{muassasa}</p>
+  <div class="details">
+    <p class="label">Sana va vaqt</p>
+    <p>{sana} &middot; {vaqt}</p>
+    <p class="label" style="margin-top:14px;">Manzil</p>
+    <p>{manzil}</p>
+    {map_html}
+  </div>
+</div>
+</body>
+</html>"""
+
+
+def render_official_event_page(data: dict) -> str:
+    tadbir = escape_html(data["tadbir"])
+    tashkilotchi = escape_html(data["tashkilotchi"])
+    sana = data["sana"]
+    vaqt = data["vaqt"]
+    manzil = escape_html(data["manzil"])
+    xarita_link = data.get("xarita_link") or ""
+    tavsif = escape_html(data.get("tavsif") or "").replace("\n", "<br>")
+
+    map_html = ""
+    if xarita_link:
+        map_html = f'<a class="map-link" href="{xarita_link}" target="_blank" rel="noopener">Manzilni xaritada ko\'rish</a>'
+
+    tavsif_html = f'<p class="tavsif">{tavsif}</p>' if tavsif else ""
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{tadbir}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: #F4F5F7;
+    color: #1F2733;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 60px 20px;
+  }}
+  .card {{
+    max-width: 460px; width: 100%;
+    background: #FFFFFF;
+    border-radius: 4px;
+    border-left: 5px solid #2455A4;
+    padding: 40px 36px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.06);
+  }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #2455A4; margin: 0 0 12px; font-weight: 600; }}
+  .title {{ font-size: 24px; font-weight: 700; margin: 0 0 8px; color: #1F2733; }}
+  .tashkilotchi {{ font-size: 13px; color: #6B7686; margin: 0 0 28px; }}
+  .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-top: 1px solid #E4E7EC; padding-top: 22px; margin-bottom: 18px; }}
+  .grid .label {{ font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #6B7686; margin: 0 0 4px; }}
+  .grid .value {{ font-size: 14px; font-weight: 500; margin: 0; }}
+  .tavsif {{ font-size: 14px; line-height: 1.6; color: #3A4353; margin: 10px 0 6px; }}
+  .map-link {{ display: inline-block; margin-top: 8px; font-size: 13px; color: #2455A4; text-decoration: underline; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <p class="eyebrow">Rasmiy tadbir</p>
+  <h1 class="title">{tadbir}</h1>
+  <p class="tashkilotchi">Tashkilotchi: {tashkilotchi}</p>
+  <div class="grid">
+    <div><p class="label">Sana</p><p class="value">{sana}</p></div>
+    <div><p class="label">Vaqt</p><p class="value">{vaqt}</p></div>
+  </div>
+  <p class="grid label" style="margin-bottom:2px;">Manzil</p>
+  <p class="value">{manzil}</p>
+  {map_html}
+  {tavsif_html}
 </div>
 </body>
 </html>"""
