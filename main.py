@@ -96,6 +96,7 @@ HOME_PAGE = r"""<!DOCTYPE html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
 :root {
   --ink: #1B2430; --ink-deep: #131A24; --parchment: #F3ECD9; --parchment-dim: #E4DABF;
@@ -151,6 +152,18 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 .result-link-box input { flex: 1; font-family: 'Inter', sans-serif; font-size: 13px; background: rgba(239, 232, 214, 0.05); border: 1px solid rgba(239, 232, 214, 0.16); border-radius: 3px; padding: 11px 12px; color: var(--text-on-ink); }
 .btn-view-link { display: inline-block; color: var(--brass-light); font-size: 14px; text-decoration: none; }
 .btn-view-link:hover { text-decoration: underline; }
+.map-field { display: flex; flex-direction: column; gap: 6px; }
+.map-field-label { font-size: 13px; color: var(--text-on-ink-dim); }
+.btn-map-pick { align-self: flex-start; font-family: 'Inter', sans-serif; font-size: 13px; background: rgba(184,144,90,0.12); border: 1px solid var(--brass); color: var(--brass-light); border-radius: 3px; padding: 9px 14px; cursor: pointer; }
+.btn-map-pick:hover { background: rgba(184,144,90,0.2); }
+.map-preview { font-size: 12px; color: var(--text-on-ink-dim); margin: 0; }
+.map-modal { display: none; position: fixed; inset: 0; background: rgba(10,14,20,0.75); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+.map-modal.active { display: flex; }
+.map-modal-inner { background: var(--parchment); border-radius: 6px; padding: 16px; max-width: 480px; width: 100%; }
+#map-picker { height: 320px; border-radius: 4px; }
+.map-modal-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.map-modal-actions .btn-primary { flex: 1; }
+.map-modal-hint { font-family: 'Inter', sans-serif; font-size: 12px; color: #6B5A3A; margin: 0 0 10px; }
 .site-footer { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--text-on-ink-dim); opacity: 0.6; z-index: 5; }
 .btn-back { position: absolute; top: 24px; left: 24px; background: none; border: none; color: var(--text-on-ink-dim); font-family: 'Inter', sans-serif; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 8px; }
 .btn-back:hover { color: var(--parchment); }
@@ -237,7 +250,12 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
         <label>Vaqt<input type="time" name="vaqt" required></label>
       </div>
       <label>Manzil<input type="text" name="manzil" placeholder="Toshkent, Navoiy ko'chasi 23" required></label>
-      <label>Xarita havolasi (ixtiyoriy)<input type="url" name="xarita_link" placeholder="https://maps.google.com/..."></label>
+      <div class="map-field">
+        <span class="map-field-label">Manzil xaritada (ixtiyoriy)</span>
+        <input type="hidden" name="xarita_link" id="xarita-toy">
+        <button type="button" class="btn-map-pick" id="xarita-toy-btn" data-target="xarita-toy">📍 Xaritadan joy tanlash</button>
+        <p class="map-preview" id="xarita-toy-preview"></p>
+      </div>
       <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
       <p class="form-error" id="form-toy-error"></p>
     </form>
@@ -257,7 +275,12 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
         <label>Vaqt<input type="time" name="vaqt" required></label>
       </div>
       <label>Manzil<input type="text" name="manzil" placeholder="Toshkent, restoran nomi" required></label>
-      <label>Xarita havolasi (ixtiyoriy)<input type="url" name="xarita_link" placeholder="https://maps.google.com/..."></label>
+      <div class="map-field">
+        <span class="map-field-label">Manzil xaritada (ixtiyoriy)</span>
+        <input type="hidden" name="xarita_link" id="xarita-tugilgan-kun">
+        <button type="button" class="btn-map-pick" id="xarita-tugilgan-kun-btn" data-target="xarita-tugilgan-kun">📍 Xaritadan joy tanlash</button>
+        <p class="map-preview" id="xarita-tugilgan-kun-preview"></p>
+      </div>
       <label>Tabrik matni (ixtiyoriy)<input type="text" name="xabar" placeholder="Kelib, quvonchimizga sherik bo'ling!"></label>
       <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
       <p class="form-error" id="form-tugilgan-kun-error"></p>
@@ -370,7 +393,12 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
         <label>Vaqt<input type="time" name="vaqt" required></label>
       </div>
       <label>Manzil<input type="text" name="manzil" placeholder="Toshkent, uy manzili" required></label>
-      <label>Xarita havolasi (ixtiyoriy)<input type="url" name="xarita_link" placeholder="https://maps.google.com/..."></label>
+      <div class="map-field">
+        <span class="map-field-label">Manzil xaritada (ixtiyoriy)</span>
+        <input type="hidden" name="xarita_link" id="xarita-beshik">
+        <button type="button" class="btn-map-pick" id="xarita-beshik-btn" data-target="xarita-beshik">📍 Xaritadan joy tanlash</button>
+        <p class="map-preview" id="xarita-beshik-preview"></p>
+      </div>
       <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
       <p class="form-error" id="form-beshik-error"></p>
     </form>
@@ -391,7 +419,12 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
         <label>Vaqt<input type="time" name="vaqt" required></label>
       </div>
       <label>Manzil<input type="text" name="manzil" placeholder="Aktlar zali, manzil" required></label>
-      <label>Xarita havolasi (ixtiyoriy)<input type="url" name="xarita_link" placeholder="https://maps.google.com/..."></label>
+      <div class="map-field">
+        <span class="map-field-label">Manzil xaritada (ixtiyoriy)</span>
+        <input type="hidden" name="xarita_link" id="xarita-bitiruv">
+        <button type="button" class="btn-map-pick" id="xarita-bitiruv-btn" data-target="xarita-bitiruv">📍 Xaritadan joy tanlash</button>
+        <p class="map-preview" id="xarita-bitiruv-preview"></p>
+      </div>
       <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
       <p class="form-error" id="form-bitiruv-error"></p>
     </form>
@@ -412,7 +445,12 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
         <label>Vaqt<input type="time" name="vaqt" required></label>
       </div>
       <label>Manzil<input type="text" name="manzil" placeholder="Konferensiya zali, manzil" required></label>
-      <label>Xarita havolasi (ixtiyoriy)<input type="url" name="xarita_link" placeholder="https://maps.google.com/..."></label>
+      <div class="map-field">
+        <span class="map-field-label">Manzil xaritada (ixtiyoriy)</span>
+        <input type="hidden" name="xarita_link" id="xarita-rasmiy">
+        <button type="button" class="btn-map-pick" id="xarita-rasmiy-btn" data-target="xarita-rasmiy">📍 Xaritadan joy tanlash</button>
+        <p class="map-preview" id="xarita-rasmiy-preview"></p>
+      </div>
       <label>Qisqa tavsif (ixtiyoriy)<textarea name="tavsif" rows="3" placeholder="Tadbir haqida qisqacha..."></textarea></label>
       <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
       <p class="form-error" id="form-rasmiy-error"></p>
@@ -438,6 +476,18 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 
 <p class="site-footer">Yaratuvchi: Ilhomjonov Shahzodbek</p>
 
+<div id="map-modal" class="map-modal">
+  <div class="map-modal-inner">
+    <p class="map-modal-hint">Xaritada manzilni bosib belgilang</p>
+    <div id="map-picker"></div>
+    <div class="map-modal-actions">
+      <button type="button" id="map-cancel" class="btn-primary" style="background:transparent;border:1px solid var(--ink-deep);color:var(--ink-deep);">Bekor qilish</button>
+      <button type="button" id="map-confirm" class="btn-primary">Tanlash</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -537,6 +587,50 @@ setupForm('form-tugilgan-kun-tabrik', 'form-tugilgan-kun-tabrik-error', '/api/cr
 setupForm('form-beshik', 'form-beshik-error', '/api/create/beshik');
 setupForm('form-bitiruv', 'form-bitiruv-error', '/api/create/bitiruv');
 setupForm('form-rasmiy', 'form-rasmiy-error', '/api/create/rasmiy');
+
+// --- Xaritadan joy tanlash ---
+let mapInstance = null;
+let mapMarker = null;
+let currentMapTarget = null;
+
+function ensureMapInitialized() {
+  if (mapInstance) return;
+  mapInstance = L.map('map-picker').setView([41.311081, 69.240562], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(mapInstance);
+  mapInstance.on('click', function (e) {
+    if (mapMarker) { mapInstance.removeLayer(mapMarker); }
+    mapMarker = L.marker(e.latlng).addTo(mapInstance);
+  });
+}
+
+document.querySelectorAll('.btn-map-pick').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentMapTarget = btn.dataset.target;
+    document.getElementById('map-modal').classList.add('active');
+    ensureMapInitialized();
+    setTimeout(() => mapInstance.invalidateSize(), 150);
+  });
+});
+
+document.getElementById('map-cancel').addEventListener('click', () => {
+  document.getElementById('map-modal').classList.remove('active');
+});
+
+document.getElementById('map-confirm').addEventListener('click', () => {
+  if (!mapMarker) {
+    alert('Iltimos, avval xaritada joyni bosib belgilang.');
+    return;
+  }
+  const latlng = mapMarker.getLatLng();
+  const link = `https://www.google.com/maps?q=${latlng.lat.toFixed(6)},${latlng.lng.toFixed(6)}`;
+  document.getElementById(currentMapTarget).value = link;
+  document.getElementById(currentMapTarget + '-preview').textContent = `Tanlandi: ${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+  document.getElementById(currentMapTarget + '-btn').textContent = "📍 Joyni o'zgartirish";
+  document.getElementById('map-modal').classList.remove('active');
+});
 
 document.getElementById('btn-copy').addEventListener('click', () => {
   const input = document.getElementById('result-link');
