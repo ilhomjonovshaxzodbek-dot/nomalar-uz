@@ -108,7 +108,7 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 .seal svg { width: 100%; height: 100%; }
 .seal circle { fill: var(--brass); }
 .seal path { fill: var(--ink); }
-.screen { display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 100px 24px 48px; }
+.screen { display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 100px 24px 48px; position: relative; }
 .screen.active { display: flex; }
 .intro-wrap { text-align: center; max-width: 420px; animation: rise 0.8s ease both; }
 .brand-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 56px; margin: 0 0 12px; color: var(--parchment); }
@@ -151,6 +151,8 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 .btn-view-link { display: inline-block; color: var(--brass-light); font-size: 14px; text-decoration: none; }
 .btn-view-link:hover { text-decoration: underline; }
 .site-footer { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--text-on-ink-dim); opacity: 0.6; z-index: 5; }
+.btn-back { position: absolute; top: 24px; left: 24px; background: none; border: none; color: var(--text-on-ink-dim); font-family: 'Inter', sans-serif; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 8px; }
+.btn-back:hover { color: var(--parchment); }
 @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .intro-wrap, .explain-slide { animation: none; } }
 </style>
@@ -174,6 +176,7 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 </section>
 
 <section id="screen-explain" class="screen">
+  <button class="btn-back" id="btn-back-explain">&larr; Orqaga</button>
   <div class="explain-wrap">
     <div class="explain-slide" data-index="0">
       <span class="explain-num">01</span>
@@ -200,6 +203,7 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 </section>
 
 <section id="screen-templates" class="screen">
+  <button class="btn-back" data-back="screen-explain">&larr; Orqaga</button>
   <div class="templates-wrap">
     <p class="eyebrow">1-qadam</p>
     <h2 class="section-title">Qanday noma kerak?</h2>
@@ -217,6 +221,7 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 </section>
 
 <section id="screen-form-toy" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
   <div class="form-wrap">
     <p class="eyebrow">2-qadam</p>
     <h2 class="section-title">To'y ma'lumotlari</h2>
@@ -236,6 +241,7 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 </section>
 
 <section id="screen-form-tugilgan-kun" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
   <div class="form-wrap">
     <p class="eyebrow">2-qadam</p>
     <h2 class="section-title">Tug'ilgan kun ma'lumotlari</h2>
@@ -266,6 +272,7 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
       <button id="btn-copy" class="btn-primary">Nusxalash</button>
     </div>
     <a id="btn-view" href="#" target="_blank" class="btn-view-link">Sahifani ko'rish &rarr;</a>
+    <p style="margin-top:20px;"><button class="btn-back" data-back="screen-templates" style="position:static;">&larr; Yana noma yaratish</button></p>
   </div>
 </section>
 
@@ -278,6 +285,11 @@ function showScreen(id) {
 }
 
 document.getElementById('btn-start').addEventListener('click', () => showScreen('screen-explain'));
+
+// --- Orqaga tugmalari ---
+document.querySelectorAll('.btn-back[data-back]').forEach(btn => {
+  btn.addEventListener('click', () => showScreen(btn.dataset.back));
+});
 
 const slides = document.querySelectorAll('.explain-slide');
 const dots = document.querySelectorAll('.dot-i');
@@ -295,6 +307,11 @@ setSlide(0);
 document.getElementById('btn-continue').addEventListener('click', () => {
   if (currentSlide < slides.length - 1) { setSlide(currentSlide + 1); }
   else { showScreen('screen-templates'); }
+});
+
+document.getElementById('btn-back-explain').addEventListener('click', () => {
+  if (currentSlide > 0) { setSlide(currentSlide - 1); }
+  else { showScreen('screen-intro'); }
 });
 
 const tplCards = document.querySelectorAll('.tpl-card');
