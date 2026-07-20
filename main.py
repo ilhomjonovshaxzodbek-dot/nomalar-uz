@@ -217,6 +217,8 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
       <button class="tpl-card" data-tpl="bitiruv"><span class="tpl-mark">06</span><span class="tpl-name">Bitiruv marosimi</span></button>
       <button class="tpl-card" data-tpl="rasmiy"><span class="tpl-mark">07</span><span class="tpl-name">Rasmiy tadbir</span></button>
       <button class="tpl-card" data-tpl="kafolat"><span class="tpl-mark">08</span><span class="tpl-name">Kafolat xati</span></button>
+      <button class="tpl-card" data-tpl="ota-ona-kafolat"><span class="tpl-mark">09</span><span class="tpl-name">Ota-ona kafolat xati</span></button>
+      <button class="tpl-card" data-tpl="tugilgan-kun-tabrik"><span class="tpl-mark">10</span><span class="tpl-name">Tug'ilgan kun tabrigi</span></button>
     </div>
     <p class="next-note" id="next-note">Tanlang — keyingi bosqichda forma ochiladi.</p>
   </div>
@@ -320,6 +322,41 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 </section>
 
 
+<section id="screen-form-ota-ona-kafolat" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Ota-ona kafolat xati</h2>
+    <form id="form-ota-ona-kafolat" class="app-form">
+      <label>O'quvchi ismi<input type="text" name="oquvchi" placeholder="Ism Familiya" required></label>
+      <label>Sinf/guruh<input type="text" name="sinf" placeholder="9-A sinf" required></label>
+      <label>Maktab/muassasa nomi<input type="text" name="maktab" placeholder="12-maktab" required></label>
+      <label>Ota-ona ismi<input type="text" name="otaona" placeholder="Ism Familiya" required></label>
+      <label>Va'da matni<textarea name="vada" rows="4" placeholder="Farzandim intizomga rioya qilishiga, darslarga muntazam qatnashishiga va'da beraman..." required></textarea></label>
+      <label>Sana<input type="date" name="sana" required></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-ota-ona-kafolat-error"></p>
+    </form>
+  </div>
+</section>
+
+
+<section id="screen-form-tugilgan-kun-tabrik" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Tug'ilgan kun tabrigi</h2>
+    <form id="form-tugilgan-kun-tabrik" class="app-form">
+      <label>Kimga (ism)<input type="text" name="kimga" placeholder="Malika" required></label>
+      <label>Tabrik matni<textarea name="tabrik" rows="5" placeholder="Tug'ilgan kuning bilan! Baxtli, sog'lom va orzularing amalga oshadigan yil bo'lsin!" required></textarea></label>
+      <label>Kimdan<input type="text" name="kimdan" placeholder="Ism Familiya" required></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-tugilgan-kun-tabrik-error"></p>
+    </form>
+  </div>
+</section>
+
+
 <section id="screen-result" class="screen">
   <div class="result-wrap">
     <p class="eyebrow">Tayyor</p>
@@ -386,6 +423,8 @@ tplCards.forEach(card => {
     else if (tpl === 'tushuntirish') { showScreen('screen-form-tushuntirish'); }
     else if (tpl === 'eslatma') { showScreen('screen-form-eslatma'); }
     else if (tpl === 'kafolat') { showScreen('screen-form-kafolat'); }
+    else if (tpl === 'ota-ona-kafolat') { showScreen('screen-form-ota-ona-kafolat'); }
+    else if (tpl === 'tugilgan-kun-tabrik') { showScreen('screen-form-tugilgan-kun-tabrik'); }
     else { nextNote.textContent = `"${tplName}" formasi tez orada qo'shiladi.`; }
   });
 });
@@ -425,6 +464,8 @@ setupForm('form-tugilgan-kun', 'form-tugilgan-kun-error', '/api/create/tugilgan-
 setupForm('form-tushuntirish', 'form-tushuntirish-error', '/api/create/tushuntirish');
 setupForm('form-eslatma', 'form-eslatma-error', '/api/create/eslatma');
 setupForm('form-kafolat', 'form-kafolat-error', '/api/create/kafolat');
+setupForm('form-ota-ona-kafolat', 'form-ota-ona-kafolat-error', '/api/create/ota-ona-kafolat');
+setupForm('form-tugilgan-kun-tabrik', 'form-tugilgan-kun-tabrik-error', '/api/create/tugilgan-kun-tabrik');
 
 document.getElementById('btn-copy').addEventListener('click', () => {
   const input = document.getElementById('result-link');
@@ -609,6 +650,69 @@ def create_guarantee(form: GuaranteeForm):
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
+# ============================================================
+#  OTA-ONA KAFOLAT XATI — FORMA VA NATIJA
+# ============================================================
+
+class ParentGuaranteeForm(BaseModel):
+    oquvchi: str
+    sinf: str
+    maktab: str
+    otaona: str
+    vada: str
+    sana: str
+
+
+@app.post("/api/create/ota-ona-kafolat")
+def create_parent_guarantee(form: ParentGuaranteeForm):
+    if not form.oquvchi.strip() or not form.maktab.strip() or not form.otaona.strip() or not form.vada.strip() or not form.sana:
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.oquvchi}-kafolat")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("ota-ona-kafolat", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
+# ============================================================
+#  TUG'ILGAN KUN TABRIGI — FORMA VA NATIJA
+# ============================================================
+
+class BirthdayGreetingForm(BaseModel):
+    kimga: str
+    tabrik: str
+    kimdan: str
+
+
+@app.post("/api/create/tugilgan-kun-tabrik")
+def create_birthday_greeting(form: BirthdayGreetingForm):
+    if not form.kimga.strip() or not form.tabrik.strip() or not form.kimdan.strip():
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.kimga}-tabrik")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("tugilgan-kun-tabrik", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
 @app.get("/n/{slug}", response_class=HTMLResponse)
 def view_page(slug: str):
     conn = sqlite3.connect(DB_PATH)
@@ -633,6 +737,10 @@ def view_page(slug: str):
         return render_reminder_page(data)
     if template_type == "kafolat":
         return render_guarantee_page(data)
+    if template_type == "ota-ona-kafolat":
+        return render_parent_guarantee_page(data)
+    if template_type == "tugilgan-kun-tabrik":
+        return render_birthday_greeting_page(data)
 
     raise HTTPException(status_code=404, detail="Noma turi topilmadi")
 
@@ -978,6 +1086,112 @@ def render_guarantee_page(data: dict) -> str:
   {shartlar_html}
 
   <p class="beruvchi">{beruvchi}</p>
+</div>
+</body>
+</html>"""
+
+
+def render_parent_guarantee_page(data: dict) -> str:
+    oquvchi = escape_html(data["oquvchi"])
+    sinf = escape_html(data["sinf"])
+    maktab = escape_html(data["maktab"])
+    otaona = escape_html(data["otaona"])
+    vada = escape_html(data["vada"]).replace("\n", "<br>")
+    sana = data["sana"]
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafolat xati — {oquvchi}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: #E9EEF3;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 48px 20px;
+  }}
+  .sheet {{
+    max-width: 460px; width: 100%;
+    background:
+      linear-gradient(#FDFEFF 0px, #FDFEFF 27px, #CFE0F0 28px);
+    background-size: 100% 28px;
+    background-color: #FDFEFF;
+    padding: 40px 40px 40px 56px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    position: relative;
+    border-left: 3px solid #E8746B;
+  }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #4A6FA5; margin: 0 0 20px; }}
+  .title {{ font-family: 'Caveat', cursive; font-weight: 600; font-size: 32px; color: #2C4A73; margin: 0 0 24px; }}
+  .info {{ font-size: 14px; color: #2E3B4E; margin: 4px 0; }}
+  .info b {{ color: #2C4A73; }}
+  .vada {{ font-family: 'Caveat', cursive; font-size: 20px; color: #2E3B4E; line-height: 1.5; margin: 20px 0; }}
+  .footer {{ font-size: 13px; color: #4A6FA5; margin-top: 20px; text-align: right; }}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <p class="eyebrow">Ota-ona kafolat xati</p>
+  <h1 class="title">{maktab}</h1>
+  <p class="info"><b>O'quvchi:</b> {oquvchi} ({sinf})</p>
+  <p class="info"><b>Ota-ona:</b> {otaona}</p>
+  <p class="vada">{vada}</p>
+  <p class="footer">{otaona} &middot; {sana}</p>
+</div>
+</body>
+</html>"""
+
+
+def render_birthday_greeting_page(data: dict) -> str:
+    kimga = escape_html(data["kimga"])
+    tabrik = escape_html(data["tabrik"]).replace("\n", "<br>")
+    kimdan = escape_html(data["kimdan"])
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{kimga} — tug'ilgan kun tabrigi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: linear-gradient(160deg, #FBC7E0 0%, #C8B6F2 50%, #A6D8F0 100%);
+    color: #3A2E4A;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 60px 20px;
+  }}
+  .card {{
+    max-width: 400px; width: 100%; text-align: center;
+    background: rgba(255,255,255,0.82);
+    border-radius: 28px;
+    padding: 44px 30px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.12);
+  }}
+  .confetti {{ font-size: 30px; margin-bottom: 10px; letter-spacing: 6px; }}
+  .headline {{ font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 30px; color: #B0459A; margin: 0 0 6px; }}
+  .kimga {{ font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 22px; color: #5B4B8A; margin: 0 0 22px; }}
+  .tabrik {{ font-size: 15px; line-height: 1.7; color: #4A3D5C; margin: 0 0 26px; }}
+  .kimdan {{ font-size: 13px; color: #7A6A8F; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="confetti">🎉🎈🎁</div>
+  <p class="headline">Tabriklaymiz!</p>
+  <p class="kimga">{kimga}</p>
+  <p class="tabrik">{tabrik}</p>
+  <p class="kimdan">— {kimdan}</p>
 </div>
 </body>
 </html>"""
