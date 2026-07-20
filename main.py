@@ -138,10 +138,10 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 .next-note { margin-top: 28px; font-size: 13px; color: var(--text-on-ink-dim); }
 .form-wrap { max-width: 380px; width: 100%; }
 .form-wrap .section-title { text-align: center; }
-#form-toy { display: flex; flex-direction: column; gap: 16px; }
-#form-toy label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-on-ink-dim); }
-#form-toy input { font-family: 'Inter', sans-serif; font-size: 14px; background: rgba(239, 232, 214, 0.05); border: 1px solid rgba(239, 232, 214, 0.16); border-radius: 3px; padding: 11px 12px; color: var(--text-on-ink); }
-#form-toy input:focus { outline: none; border-color: var(--brass); }
+.app-form { display: flex; flex-direction: column; gap: 16px; }
+.app-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-on-ink-dim); }
+.app-form input { font-family: 'Inter', sans-serif; font-size: 14px; background: rgba(239, 232, 214, 0.05); border: 1px solid rgba(239, 232, 214, 0.16); border-radius: 3px; padding: 11px 12px; color: var(--text-on-ink); }
+.app-form input:focus { outline: none; border-color: var(--brass); }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-error { color: #D97757; font-size: 13px; min-height: 18px; margin: 0; }
 .result-wrap { max-width: 380px; width: 100%; text-align: center; }
@@ -220,7 +220,7 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
   <div class="form-wrap">
     <p class="eyebrow">2-qadam</p>
     <h2 class="section-title">To'y ma'lumotlari</h2>
-    <form id="form-toy">
+    <form id="form-toy" class="app-form">
       <label>Kuyov ismi<input type="text" name="kuyov" placeholder="Farhod" required></label>
       <label>Kelin ismi<input type="text" name="kelin" placeholder="Shirin" required></label>
       <div class="row-2">
@@ -239,7 +239,7 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
   <div class="form-wrap">
     <p class="eyebrow">2-qadam</p>
     <h2 class="section-title">Tug'ilgan kun ma'lumotlari</h2>
-    <form id="form-tugilgan-kun">
+    <form id="form-tugilgan-kun" class="app-form">
       <label>Kimning tug'ilgan kuni?<input type="text" name="ism" placeholder="Malika" required></label>
       <label>Necha yosh to'ladi (ixtiyoriy)<input type="number" name="yosh" placeholder="18" min="0"></label>
       <div class="row-2">
