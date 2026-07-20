@@ -216,6 +216,7 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
       <button class="tpl-card" data-tpl="beshik"><span class="tpl-mark">05</span><span class="tpl-name">Beshik to'yi</span></button>
       <button class="tpl-card" data-tpl="bitiruv"><span class="tpl-mark">06</span><span class="tpl-name">Bitiruv marosimi</span></button>
       <button class="tpl-card" data-tpl="rasmiy"><span class="tpl-mark">07</span><span class="tpl-name">Rasmiy tadbir</span></button>
+      <button class="tpl-card" data-tpl="kafolat"><span class="tpl-mark">08</span><span class="tpl-name">Kafolat xati</span></button>
     </div>
     <p class="next-note" id="next-note">Tanlang — keyingi bosqichda forma ochiladi.</p>
   </div>
@@ -275,6 +276,45 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
       <label>Sana<input type="date" name="sana" required></label>
       <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
       <p class="form-error" id="form-tushuntirish-error"></p>
+    </form>
+  </div>
+</section>
+
+
+<section id="screen-form-eslatma" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Eslatma xati</h2>
+    <form id="form-eslatma" class="app-form">
+      <label>Sarlavha<input type="text" name="sarlavha" placeholder="Muddat yaqinlashmoqda" required></label>
+      <label>Kimga<input type="text" name="kimga" placeholder="Hamma xodimlarga" required></label>
+      <label>Eslatma matni<textarea name="matn" rows="5" placeholder="Nimani eslatmoqchisiz?" required></textarea></label>
+      <label>Muddat (sana)<input type="date" name="muddat" required></label>
+      <label>Kimdan<input type="text" name="kimdan" placeholder="Ism Familiya" required></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-eslatma-error"></p>
+    </form>
+  </div>
+</section>
+
+
+<section id="screen-form-kafolat" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Kafolat xati</h2>
+    <form id="form-kafolat" class="app-form">
+      <label>Mahsulot yoki xizmat nomi<input type="text" name="mahsulot" placeholder="Noutbuk ta'mirlash xizmati" required></label>
+      <label>Mijoz ismi<input type="text" name="mijoz" placeholder="Ism Familiya" required></label>
+      <div class="row-2">
+        <label>Kafolat muddati<input type="text" name="muddat" placeholder="12 oy" required></label>
+        <label>Berilgan sana<input type="date" name="sana" required></label>
+      </div>
+      <label>Shartlar (ixtiyoriy)<textarea name="shartlar" rows="4" placeholder="Kafolat qanday hollarda amal qiladi..."></textarea></label>
+      <label>Beruvchi tashkilot/shaxs<input type="text" name="beruvchi" placeholder="Kompaniya yoki ism" required></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-kafolat-error"></p>
     </form>
   </div>
 </section>
@@ -344,6 +384,8 @@ tplCards.forEach(card => {
     if (tpl === 'toy') { showScreen('screen-form-toy'); }
     else if (tpl === 'tugilgan-kun') { showScreen('screen-form-tugilgan-kun'); }
     else if (tpl === 'tushuntirish') { showScreen('screen-form-tushuntirish'); }
+    else if (tpl === 'eslatma') { showScreen('screen-form-eslatma'); }
+    else if (tpl === 'kafolat') { showScreen('screen-form-kafolat'); }
     else { nextNote.textContent = `"${tplName}" formasi tez orada qo'shiladi.`; }
   });
 });
@@ -381,6 +423,8 @@ function setupForm(formId, errorId, apiPath) {
 setupForm('form-toy', 'form-toy-error', '/api/create/toy');
 setupForm('form-tugilgan-kun', 'form-tugilgan-kun-error', '/api/create/tugilgan-kun');
 setupForm('form-tushuntirish', 'form-tushuntirish-error', '/api/create/tushuntirish');
+setupForm('form-eslatma', 'form-eslatma-error', '/api/create/eslatma');
+setupForm('form-kafolat', 'form-kafolat-error', '/api/create/kafolat');
 
 document.getElementById('btn-copy').addEventListener('click', () => {
   const input = document.getElementById('result-link');
@@ -500,6 +544,71 @@ def create_explanation(form: ExplanationForm):
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
+# ============================================================
+#  ESLATMA XATI — FORMA VA NATIJA
+# ============================================================
+
+class ReminderForm(BaseModel):
+    sarlavha: str
+    kimga: str
+    matn: str
+    muddat: str
+    kimdan: str
+
+
+@app.post("/api/create/eslatma")
+def create_reminder(form: ReminderForm):
+    if not form.sarlavha.strip() or not form.kimga.strip() or not form.matn.strip() or not form.muddat or not form.kimdan.strip():
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.kimdan}-eslatma")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("eslatma", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
+# ============================================================
+#  KAFOLAT XATI — FORMA VA NATIJA
+# ============================================================
+
+class GuaranteeForm(BaseModel):
+    mahsulot: str
+    mijoz: str
+    muddat: str
+    sana: str
+    shartlar: str = ""
+    beruvchi: str
+
+
+@app.post("/api/create/kafolat")
+def create_guarantee(form: GuaranteeForm):
+    if not form.mahsulot.strip() or not form.mijoz.strip() or not form.muddat.strip() or not form.sana or not form.beruvchi.strip():
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.beruvchi}-kafolat")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("kafolat", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
 @app.get("/n/{slug}", response_class=HTMLResponse)
 def view_page(slug: str):
     conn = sqlite3.connect(DB_PATH)
@@ -520,6 +629,10 @@ def view_page(slug: str):
         return render_birthday_page(data)
     if template_type == "tushuntirish":
         return render_explanation_page(data)
+    if template_type == "eslatma":
+        return render_reminder_page(data)
+    if template_type == "kafolat":
+        return render_guarantee_page(data)
 
     raise HTTPException(status_code=404, detail="Noma turi topilmadi")
 
@@ -731,6 +844,140 @@ def render_explanation_page(data: dict) -> str:
     <strong>{kimdan}</strong>
     {sana}
   </div>
+</div>
+</body>
+</html>"""
+
+
+def render_reminder_page(data: dict) -> str:
+    sarlavha = escape_html(data["sarlavha"])
+    kimga = escape_html(data["kimga"])
+    matn = escape_html(data["matn"]).replace("\n", "<br>")
+    muddat = data["muddat"]
+    kimdan = escape_html(data["kimdan"])
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{sarlavha}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: #E7E2D6;
+    color: #3A3324;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 60px 20px;
+  }}
+  .note {{
+    max-width: 380px; width: 100%;
+    background: #FDE68A;
+    padding: 40px 32px 34px;
+    transform: rotate(-1.2deg);
+    box-shadow: 0 14px 30px rgba(0,0,0,0.15);
+    position: relative;
+  }}
+  .pin {{ position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 28px; }}
+  .eyebrow {{ font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #92702A; margin: 6px 0 14px; }}
+  .title {{ font-family: 'Kalam', cursive; font-weight: 700; font-size: 26px; color: #4A3B14; margin: 0 0 18px; }}
+  .addressee {{ font-size: 13px; color: #6B5A2E; margin: 0 0 18px; }}
+  .body-text {{ font-family: 'Kalam', cursive; font-size: 17px; line-height: 1.6; color: #3A3324; margin: 0 0 26px; }}
+  .muddat-box {{ background: rgba(255,255,255,0.5); border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; }}
+  .muddat-box .label {{ font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #92702A; }}
+  .muddat-box p {{ margin: 4px 0 0; font-weight: 500; }}
+  .kimdan {{ font-size: 13px; color: #6B5A2E; text-align: right; }}
+</style>
+</head>
+<body>
+<div class="note">
+  <div class="pin">📌</div>
+  <p class="eyebrow">Eslatma xati</p>
+  <h1 class="title">{sarlavha}</h1>
+  <p class="addressee">Kimga: {kimga}</p>
+  <p class="body-text">{matn}</p>
+  <div class="muddat-box">
+    <p class="label">Muddat</p>
+    <p>{muddat}</p>
+  </div>
+  <p class="kimdan">— {kimdan}</p>
+</div>
+</body>
+</html>"""
+
+
+def render_guarantee_page(data: dict) -> str:
+    mahsulot = escape_html(data["mahsulot"])
+    mijoz = escape_html(data["mijoz"])
+    muddat = escape_html(data["muddat"])
+    sana = data["sana"]
+    shartlar = escape_html(data.get("shartlar") or "").replace("\n", "<br>")
+    beruvchi = escape_html(data["beruvchi"])
+
+    shartlar_html = ""
+    if shartlar:
+        shartlar_html = f'<p class="label" style="margin-top:20px;">Shartlar</p><p class="shartlar-text">{shartlar}</p>'
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafolat xati — {mahsulot}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: #101820;
+    color: #E9E4D6;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 48px 20px;
+  }}
+  .cert {{
+    max-width: 460px; width: 100%;
+    background: #16202B;
+    border: 1px solid #C9A84C;
+    padding: 44px 36px;
+    text-align: center;
+    position: relative;
+  }}
+  .cert::before {{
+    content: "";
+    position: absolute; inset: 8px;
+    border: 1px solid rgba(201,168,76,0.35);
+    pointer-events: none;
+  }}
+  .badge {{ font-size: 30px; margin-bottom: 10px; }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: #C9A84C; margin: 0 0 18px; }}
+  .title {{ font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 28px; margin: 0 0 6px; color: #F3ECD9; }}
+  .mijoz {{ font-size: 13px; color: #9FA8B0; margin: 0 0 30px; }}
+  .row {{ display: flex; justify-content: space-between; border-top: 1px solid rgba(201,168,76,0.25); padding: 14px 0; text-align: left; }}
+  .row .label {{ font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #C9A84C; }}
+  .row .value {{ font-size: 14px; color: #E9E4D6; }}
+  .shartlar-text {{ font-size: 13px; color: #B7BEC5; line-height: 1.6; text-align: left; margin-top: 6px; }}
+  .beruvchi {{ margin-top: 28px; font-family: 'Cormorant Garamond', serif; font-size: 17px; color: #C9A84C; }}
+</style>
+</head>
+<body>
+<div class="cert">
+  <div class="badge">🛡️</div>
+  <p class="eyebrow">Kafolat xati</p>
+  <h1 class="title">{mahsulot}</h1>
+  <p class="mijoz">Mijoz: {mijoz}</p>
+
+  <div class="row"><span class="label">Kafolat muddati</span><span class="value">{muddat}</span></div>
+  <div class="row"><span class="label">Berilgan sana</span><span class="value">{sana}</span></div>
+
+  {shartlar_html}
+
+  <p class="beruvchi">{beruvchi}</p>
 </div>
 </body>
 </html>"""
