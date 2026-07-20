@@ -600,6 +600,9 @@ function ensureMapInitialized() {
     maxZoom: 19,
     attribution: 'Tiles &copy; Esri'
   }).addTo(mapInstance);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+  }).addTo(mapInstance);
   mapInstance.on('click', function (e) {
     if (mapMarker) { mapInstance.removeLayer(mapMarker); }
     mapMarker = L.marker(e.latlng).addTo(mapInstance);
