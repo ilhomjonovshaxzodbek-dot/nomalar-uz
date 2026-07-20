@@ -596,9 +596,9 @@ let currentMapTarget = null;
 function ensureMapInitialized() {
   if (mapInstance) return;
   mapInstance = L.map('map-picker').setView([41.311081, 69.240562], 12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 19,
-    attribution: '&copy; OpenStreetMap'
+    attribution: 'Tiles &copy; Esri'
   }).addTo(mapInstance);
   mapInstance.on('click', function (e) {
     if (mapMarker) { mapInstance.removeLayer(mapMarker); }
