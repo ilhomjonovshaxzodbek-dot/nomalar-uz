@@ -235,6 +235,27 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
   </div>
 </section>
 
+<section id="screen-form-tugilgan-kun" class="screen">
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Tug'ilgan kun ma'lumotlari</h2>
+    <form id="form-tugilgan-kun">
+      <label>Kimning tug'ilgan kuni?<input type="text" name="ism" placeholder="Malika" required></label>
+      <label>Necha yosh to'ladi (ixtiyoriy)<input type="number" name="yosh" placeholder="18" min="0"></label>
+      <div class="row-2">
+        <label>Sana<input type="date" name="sana" required></label>
+        <label>Vaqt<input type="time" name="vaqt" required></label>
+      </div>
+      <label>Manzil<input type="text" name="manzil" placeholder="Toshkent, restoran nomi" required></label>
+      <label>Xarita havolasi (ixtiyoriy)<input type="url" name="xarita_link" placeholder="https://maps.google.com/..."></label>
+      <label>Tabrik matni (ixtiyoriy)<input type="text" name="xabar" placeholder="Kelib, quvonchimizga sherik bo'ling!"></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-tugilgan-kun-error"></p>
+    </form>
+  </div>
+</section>
+
+
 <section id="screen-result" class="screen">
   <div class="result-wrap">
     <p class="eyebrow">Tayyor</p>
@@ -286,37 +307,43 @@ tplCards.forEach(card => {
     const tplName = card.querySelector('.tpl-name').textContent;
     const tpl = card.dataset.tpl;
     if (tpl === 'toy') { showScreen('screen-form-toy'); }
+    else if (tpl === 'tugilgan-kun') { showScreen('screen-form-tugilgan-kun'); }
     else { nextNote.textContent = `"${tplName}" formasi tez orada qo'shiladi.`; }
   });
 });
 
-const formToy = document.getElementById('form-toy');
-const formToyError = document.getElementById('form-toy-error');
+function setupForm(formId, errorId, apiPath) {
+  const form = document.getElementById(formId);
+  const errorEl = document.getElementById(errorId);
 
-formToy.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  formToyError.textContent = '';
-  const data = Object.fromEntries(new FormData(formToy).entries());
-  try {
-    const res = await fetch('/api/create/toy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      formToyError.textContent = err.detail || "Xatolik yuz berdi, qayta urinib ko'ring.";
-      return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorEl.textContent = '';
+    const data = Object.fromEntries(new FormData(form).entries());
+    try {
+      const res = await fetch(apiPath, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        errorEl.textContent = err.detail || "Xatolik yuz berdi, qayta urinib ko'ring.";
+        return;
+      }
+      const result = await res.json();
+      const fullUrl = window.location.origin + result.url;
+      document.getElementById('result-link').value = fullUrl;
+      document.getElementById('btn-view').href = fullUrl;
+      showScreen('screen-result');
+    } catch (err) {
+      errorEl.textContent = "Internet aloqasida muammo, qayta urinib ko'ring.";
     }
-    const result = await res.json();
-    const fullUrl = window.location.origin + result.url;
-    document.getElementById('result-link').value = fullUrl;
-    document.getElementById('btn-view').href = fullUrl;
-    showScreen('screen-result');
-  } catch (err) {
-    formToyError.textContent = 'Internet aloqasida muammo, qayta urinib ko\'ring.';
-  }
-});
+  });
+}
+
+setupForm('form-toy', 'form-toy-error', '/api/create/toy');
+setupForm('form-tugilgan-kun', 'form-tugilgan-kun-error', '/api/create/tugilgan-kun');
 
 document.getElementById('btn-copy').addEventListener('click', () => {
   const input = document.getElementById('result-link');
@@ -370,6 +397,40 @@ def create_toy(form: ToyForm):
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
+# ============================================================
+#  TUG'ILGAN KUN — FORMA VA NATIJA
+# ============================================================
+
+class BirthdayForm(BaseModel):
+    ism: str
+    yosh: str = ""
+    sana: str
+    vaqt: str
+    manzil: str
+    xarita_link: str = ""
+    xabar: str = ""
+
+
+@app.post("/api/create/tugilgan-kun")
+def create_birthday(form: BirthdayForm):
+    if not form.ism.strip() or not form.sana or not form.manzil.strip():
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.ism}-tugilgan-kun")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("tugilgan-kun", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
 @app.get("/n/{slug}", response_class=HTMLResponse)
 def view_page(slug: str):
     conn = sqlite3.connect(DB_PATH)
@@ -386,6 +447,8 @@ def view_page(slug: str):
 
     if template_type == "toy":
         return render_toy_page(data)
+    if template_type == "tugilgan-kun":
+        return render_birthday_page(data)
 
     raise HTTPException(status_code=404, detail="Noma turi topilmadi")
 
@@ -466,5 +529,74 @@ def render_toy_page(data: dict) -> str:
   tick();
   setInterval(tick, 1000);
 </script>
+</body>
+</html>"""
+
+
+def render_birthday_page(data: dict) -> str:
+    ism = data["ism"]
+    yosh = data.get("yosh") or ""
+    sana = data["sana"]
+    vaqt = data["vaqt"]
+    manzil = data["manzil"]
+    xarita_link = data.get("xarita_link") or ""
+    xabar = data.get("xabar") or "Kelib, quvonchimizga sherik bo'ling!"
+
+    yosh_html = f'<p class="yosh">{yosh} yosh</p>' if yosh else ""
+    map_html = ""
+    if xarita_link:
+        map_html = f'<a class="map-link" href="{xarita_link}" target="_blank" rel="noopener">Manzilni xaritada ko\'rish</a>'
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{ism} — tug'ilgan kun taklifnomasi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: radial-gradient(circle at 20% 15%, #FFE3A3 0%, #FFB84D 35%, #FF8C6B 70%, #F2694C 100%);
+    color: #4A2A1F;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 60px 20px;
+  }}
+  .card {{
+    max-width: 420px; width: 100%; text-align: center;
+    background: rgba(255,255,255,0.88);
+    border-radius: 24px;
+    padding: 40px 28px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.12);
+  }}
+  .balloons {{ font-size: 32px; margin-bottom: 8px; }}
+  .eyebrow {{ font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #E8724C; margin-bottom: 10px; font-weight: 500; }}
+  .name {{ font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 38px; color: #E8724C; margin: 0; }}
+  .yosh {{ font-family: 'Baloo 2', sans-serif; font-weight: 600; font-size: 18px; color: #F2A65A; margin: 6px 0 0; }}
+  .xabar {{ font-size: 14px; color: #6B4A3A; margin: 20px 0 30px; line-height: 1.6; }}
+  .details {{ border-top: 2px dashed #F2C79E; padding-top: 24px; }}
+  .details p {{ margin: 6px 0; font-size: 15px; }}
+  .details .label {{ font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #E8724C; font-weight: 500; }}
+  .map-link {{ display: inline-block; margin-top: 20px; font-size: 13px; color: #E8724C; font-weight: 500; text-decoration: underline; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="balloons">🎈🎉🎂</div>
+  <p class="eyebrow">Tug'ilgan kun taklifnomasi</p>
+  <p class="name">{ism}</p>
+  {yosh_html}
+  <p class="xabar">{xabar}</p>
+  <div class="details">
+    <p class="label">Sana va vaqt</p>
+    <p>{sana} &middot; {vaqt}</p>
+    <p class="label" style="margin-top:14px;">Manzil</p>
+    <p>{manzil}</p>
+    {map_html}
+  </div>
+</div>
 </body>
 </html>"""
