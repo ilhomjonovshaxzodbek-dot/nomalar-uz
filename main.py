@@ -232,6 +232,7 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
       <button class="tpl-card" data-tpl="kafolat"><span class="tpl-mark">08</span><span class="tpl-name">Kafolat xati</span></button>
       <button class="tpl-card" data-tpl="ota-ona-kafolat"><span class="tpl-mark">09</span><span class="tpl-name">Ota-ona kafolat xati</span></button>
       <button class="tpl-card" data-tpl="tugilgan-kun-tabrik"><span class="tpl-mark">10</span><span class="tpl-name">Tug'ilgan kun tabrigi</span></button>
+      <button class="tpl-card" data-tpl="sevishganlar"><span class="tpl-mark">11</span><span class="tpl-name">Sevishganlar xati</span></button>
     </div>
     <p class="next-note" id="next-note">Tanlang — keyingi bosqichda forma ochiladi.</p>
   </div>
@@ -459,6 +460,22 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 </section>
 
 
+<section id="screen-form-sevishganlar" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Sevishganlar xati</h2>
+    <form id="form-sevishganlar" class="app-form">
+      <label>Kimga (sevgilingiz ismi)<input type="text" name="kimga" placeholder="Zarina" required></label>
+      <label>Xat matni<textarea name="matn" rows="6" placeholder="Yuragimdagi gaplarni shu yerga yozing..." required></textarea></label>
+      <label>Kimdan<input type="text" name="kimdan" placeholder="Ism" required></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-sevishganlar-error"></p>
+    </form>
+  </div>
+</section>
+
+
 <section id="screen-result" class="screen">
   <div class="result-wrap">
     <p class="eyebrow">Tayyor</p>
@@ -543,6 +560,7 @@ tplCards.forEach(card => {
     else if (tpl === 'beshik') { showScreen('screen-form-beshik'); }
     else if (tpl === 'bitiruv') { showScreen('screen-form-bitiruv'); }
     else if (tpl === 'rasmiy') { showScreen('screen-form-rasmiy'); }
+    else if (tpl === 'sevishganlar') { showScreen('screen-form-sevishganlar'); }
     else { nextNote.textContent = `"${tplName}" formasi tez orada qo'shiladi.`; }
   });
 });
@@ -587,6 +605,7 @@ setupForm('form-tugilgan-kun-tabrik', 'form-tugilgan-kun-tabrik-error', '/api/cr
 setupForm('form-beshik', 'form-beshik-error', '/api/create/beshik');
 setupForm('form-bitiruv', 'form-bitiruv-error', '/api/create/bitiruv');
 setupForm('form-rasmiy', 'form-rasmiy-error', '/api/create/rasmiy');
+setupForm('form-sevishganlar', 'form-sevishganlar-error', '/api/create/sevishganlar');
 
 // --- Xaritadan joy tanlash ---
 let mapInstance = null;
@@ -981,6 +1000,36 @@ def create_official_event(form: OfficialEventForm):
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
+# ============================================================
+#  SEVISHGANLAR XATI — FORMA VA NATIJA
+# ============================================================
+
+class LoveLetterForm(BaseModel):
+    kimga: str
+    matn: str
+    kimdan: str
+
+
+@app.post("/api/create/sevishganlar")
+def create_love_letter(form: LoveLetterForm):
+    if not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip():
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.kimdan}-{form.kimga}-xat")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("sevishganlar", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
 @app.get("/n/{slug}", response_class=HTMLResponse)
 def view_page(slug: str):
     conn = sqlite3.connect(DB_PATH)
@@ -1015,6 +1064,8 @@ def view_page(slug: str):
         return render_graduation_page(data)
     if template_type == "rasmiy":
         return render_official_event_page(data)
+    if template_type == "sevishganlar":
+        return render_love_letter_page(data)
 
     raise HTTPException(status_code=404, detail="Noma turi topilmadi")
 
@@ -1663,6 +1714,55 @@ def render_official_event_page(data: dict) -> str:
   <p class="value">{manzil}</p>
   {map_html}
   {tavsif_html}
+</div>
+</body>
+</html>"""
+
+
+def render_love_letter_page(data: dict) -> str:
+    kimga = escape_html(data["kimga"])
+    matn = escape_html(data["matn"]).replace("\n", "<br>")
+    kimdan = escape_html(data["kimdan"])
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{kimga} uchun xat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: linear-gradient(160deg, #F7D9DE 0%, #E8B7C4 55%, #D693A8 100%);
+    color: #5C2A3A;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 60px 20px;
+  }}
+  .card {{
+    max-width: 420px; width: 100%; text-align: center;
+    background: rgba(255,255,255,0.85);
+    border-radius: 6px;
+    padding: 46px 34px;
+    box-shadow: 0 18px 45px rgba(120,40,60,0.18);
+  }}
+  .heart {{ font-size: 26px; margin-bottom: 10px; }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #B0475F; margin: 0 0 16px; }}
+  .kimga {{ font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 600; font-size: 34px; color: #A03A54; margin: 0 0 26px; }}
+  .matn {{ font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 19px; line-height: 1.7; color: #5C2A3A; margin: 0 0 30px; }}
+  .kimdan {{ font-size: 14px; color: #8A5062; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="heart">💌</div>
+  <p class="eyebrow">Sevishganlar xati</p>
+  <p class="kimga">{kimga}</p>
+  <p class="matn">{matn}</p>
+  <p class="kimdan">— {kimdan}</p>
 </div>
 </body>
 </html>"""
