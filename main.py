@@ -1045,29 +1045,159 @@ def view_page(slug: str):
     data = json.loads(data_json)
 
     if template_type == "toy":
-        return render_toy_page(data)
-    if template_type == "tugilgan-kun":
-        return render_birthday_page(data)
-    if template_type == "tushuntirish":
-        return render_explanation_page(data)
-    if template_type == "eslatma":
-        return render_reminder_page(data)
-    if template_type == "kafolat":
-        return render_guarantee_page(data)
-    if template_type == "ota-ona-kafolat":
-        return render_parent_guarantee_page(data)
-    if template_type == "tugilgan-kun-tabrik":
-        return render_birthday_greeting_page(data)
-    if template_type == "beshik":
-        return render_cradle_page(data)
-    if template_type == "bitiruv":
-        return render_graduation_page(data)
-    if template_type == "rasmiy":
-        return render_official_event_page(data)
-    if template_type == "sevishganlar":
-        return render_love_letter_page(data)
+        html = render_toy_page(data)
+    elif template_type == "tugilgan-kun":
+        html = render_birthday_page(data)
+    elif template_type == "tushuntirish":
+        html = render_explanation_page(data)
+    elif template_type == "eslatma":
+        html = render_reminder_page(data)
+    elif template_type == "kafolat":
+        html = render_guarantee_page(data)
+    elif template_type == "ota-ona-kafolat":
+        html = render_parent_guarantee_page(data)
+    elif template_type == "tugilgan-kun-tabrik":
+        html = render_birthday_greeting_page(data)
+    elif template_type == "beshik":
+        html = render_cradle_page(data)
+    elif template_type == "bitiruv":
+        html = render_graduation_page(data)
+    elif template_type == "rasmiy":
+        html = render_official_event_page(data)
+    elif template_type == "sevishganlar":
+        html = render_love_letter_page(data)
+    else:
+        raise HTTPException(status_code=404, detail="Noma turi topilmadi")
 
-    raise HTTPException(status_code=404, detail="Noma turi topilmadi")
+    return inject_action_bar(html)
+
+
+# ============================================================
+#  HAR BIR NATIJA SAHIFASIGA QO'SHILADIGAN AMALLAR PANELI
+#  (Chop etish, Yuklab olish, Ulashish, QR kod)
+# ============================================================
+
+ACTION_BAR_BLOCK = r"""
+<div class="pg-action-bar" id="pg-action-bar">
+  <button class="pg-btn" id="pg-print-btn" type="button">🖨️ Chop etish</button>
+  <button class="pg-btn" id="pg-download-btn" type="button">⬇️ Yuklab olish</button>
+  <button class="pg-btn" id="pg-share-btn" type="button">📤 Ulashish</button>
+  <button class="pg-btn" id="pg-qr-btn" type="button">▦ QR kod</button>
+</div>
+
+<div class="pg-qr-modal" id="pg-qr-modal">
+  <div class="pg-qr-inner">
+    <img id="pg-qr-img" alt="QR kod" width="220" height="220">
+    <p>Havolani telefon kamerasi bilan skanerlang</p>
+    <button class="pg-btn pg-qr-close" id="pg-qr-close" type="button">Yopish</button>
+  </div>
+</div>
+
+<style>
+  .pg-action-bar {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    background: rgba(18,18,18,0.82); padding: 10px 12px; border-radius: 30px;
+    z-index: 60; backdrop-filter: blur(6px); max-width: 94vw;
+  }
+  .pg-btn {
+    font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 500;
+    background: rgba(255,255,255,0.14); color: #fff; border: none;
+    border-radius: 20px; padding: 9px 14px; cursor: pointer; white-space: nowrap;
+    transition: background 0.15s ease;
+  }
+  .pg-btn:hover { background: rgba(255,255,255,0.26); }
+  .pg-qr-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+    z-index: 100; align-items: center; justify-content: center; padding: 20px;
+  }
+  .pg-qr-modal.active { display: flex; }
+  .pg-qr-inner {
+    background: #fff; border-radius: 14px; padding: 26px 24px; text-align: center;
+    max-width: 280px; width: 100%;
+  }
+  .pg-qr-inner img { border-radius: 6px; }
+  .pg-qr-inner p {
+    font-family: 'Inter', sans-serif; font-size: 12.5px; color: #444;
+    margin: 14px 0 16px; line-height: 1.5;
+  }
+  .pg-qr-close { background: #1B2430 !important; }
+  .pg-qr-close:hover { background: #2A3648 !important; }
+  @media print {
+    .pg-action-bar, .pg-qr-modal { display: none !important; }
+  }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+(function () {
+  var pageUrl = window.location.href;
+
+  var printBtn = document.getElementById('pg-print-btn');
+  if (printBtn) {
+    printBtn.addEventListener('click', function () { window.print(); });
+  }
+
+  var qrBtn = document.getElementById('pg-qr-btn');
+  var qrModal = document.getElementById('pg-qr-modal');
+  var qrImg = document.getElementById('pg-qr-img');
+  var qrClose = document.getElementById('pg-qr-close');
+  if (qrBtn) {
+    qrBtn.addEventListener('click', function () {
+      qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(pageUrl);
+      qrModal.classList.add('active');
+    });
+  }
+  if (qrClose) {
+    qrClose.addEventListener('click', function () { qrModal.classList.remove('active'); });
+  }
+  if (qrModal) {
+    qrModal.addEventListener('click', function (e) {
+      if (e.target === qrModal) { qrModal.classList.remove('active'); }
+    });
+  }
+
+  var shareBtn = document.getElementById('pg-share-btn');
+  if (shareBtn) {
+    shareBtn.addEventListener('click', function () {
+      if (navigator.share) {
+        navigator.share({ url: pageUrl }).catch(function () {});
+      } else {
+        var tgUrl = 'https://t.me/share/url?url=' + encodeURIComponent(pageUrl);
+        window.open(tgUrl, '_blank');
+      }
+    });
+  }
+
+  var downloadBtn = document.getElementById('pg-download-btn');
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', function () {
+      var bar = document.getElementById('pg-action-bar');
+      var originalDisplay = bar.style.display;
+      bar.style.display = 'none';
+      downloadBtn.textContent = '...';
+      html2canvas(document.body, { backgroundColor: null, scale: 2, useCORS: true }).then(function (canvas) {
+        bar.style.display = originalDisplay;
+        downloadBtn.textContent = '⬇️ Yuklab olish';
+        var link = document.createElement('a');
+        link.download = 'noma.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      }).catch(function () {
+        bar.style.display = originalDisplay;
+        downloadBtn.textContent = '⬇️ Yuklab olish';
+      });
+    });
+  }
+})();
+</script>
+"""
+
+
+def inject_action_bar(html: str) -> str:
+    if "</body>" in html:
+        return html.replace("</body>", ACTION_BAR_BLOCK + "</body>", 1)
+    return html + ACTION_BAR_BLOCK
 
 
 def render_toy_page(data: dict) -> str:
