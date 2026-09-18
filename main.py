@@ -570,7 +570,7 @@ document.querySelectorAll('.app-form').forEach(form => {
   const submitBtn = form.querySelector('button[type="submit"]');
   if (submitBtn && !form.querySelector('[name="musiqa"]')) {
     const label = document.createElement('label');
-    label.innerHTML = 'Fon musiqasi (ixtiyoriy, to\\'g\\'ridan-to\\'g\\'ri mp3 havolasi)<input type="url" name="musiqa" placeholder="https://.../musiqa.mp3">';
+    label.innerHTML = 'Fon musiqasi (ixtiyoriy, mp3 havolasi)<input type="url" name="musiqa" placeholder="https://.../musiqa.mp3">';
     form.insertBefore(label, submitBtn);
   }
 });
