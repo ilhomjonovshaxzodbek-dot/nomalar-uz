@@ -565,6 +565,16 @@ tplCards.forEach(card => {
   });
 });
 
+// --- Har bir formaga "Fon musiqasi" maydonini avtomatik qo'shish ---
+document.querySelectorAll('.app-form').forEach(form => {
+  const submitBtn = form.querySelector('button[type="submit"]');
+  if (submitBtn && !form.querySelector('[name="musiqa"]')) {
+    const label = document.createElement('label');
+    label.innerHTML = 'Fon musiqasi (ixtiyoriy, to\\'g\\'ridan-to\\'g\\'ri mp3 havolasi)<input type="url" name="musiqa" placeholder="https://.../musiqa.mp3">';
+    form.insertBefore(label, submitBtn);
+  }
+});
+
 function setupForm(formId, errorId, apiPath) {
   const form = document.getElementById(formId);
   const errorEl = document.getElementById(errorId);
@@ -684,6 +694,7 @@ class ToyForm(BaseModel):
     vaqt: str
     manzil: str
     xarita_link: str = ""
+    musiqa: str = ""
 
 
 @app.post("/api/create/toy")
@@ -718,6 +729,7 @@ class BirthdayForm(BaseModel):
     manzil: str
     xarita_link: str = ""
     xabar: str = ""
+    musiqa: str = ""
 
 
 @app.post("/api/create/tugilgan-kun")
@@ -750,6 +762,7 @@ class ExplanationForm(BaseModel):
     matn: str
     kimdan: str
     sana: str
+    musiqa: str = ""
 
 
 @app.post("/api/create/tushuntirish")
@@ -782,6 +795,7 @@ class ReminderForm(BaseModel):
     matn: str
     muddat: str
     kimdan: str
+    musiqa: str = ""
 
 
 @app.post("/api/create/eslatma")
@@ -815,6 +829,7 @@ class GuaranteeForm(BaseModel):
     sana: str
     shartlar: str = ""
     beruvchi: str
+    musiqa: str = ""
 
 
 @app.post("/api/create/kafolat")
@@ -848,6 +863,7 @@ class ParentGuaranteeForm(BaseModel):
     otaona: str
     vada: str
     sana: str
+    musiqa: str = ""
 
 
 @app.post("/api/create/ota-ona-kafolat")
@@ -878,6 +894,7 @@ class BirthdayGreetingForm(BaseModel):
     kimga: str
     tabrik: str
     kimdan: str
+    musiqa: str = ""
 
 
 @app.post("/api/create/tugilgan-kun-tabrik")
@@ -911,6 +928,7 @@ class CradleForm(BaseModel):
     vaqt: str
     manzil: str
     xarita_link: str = ""
+    musiqa: str = ""
 
 
 @app.post("/api/create/beshik")
@@ -944,6 +962,7 @@ class GraduationForm(BaseModel):
     vaqt: str
     manzil: str
     xarita_link: str = ""
+    musiqa: str = ""
 
 
 @app.post("/api/create/bitiruv")
@@ -978,6 +997,7 @@ class OfficialEventForm(BaseModel):
     manzil: str
     xarita_link: str = ""
     tavsif: str = ""
+    musiqa: str = ""
 
 
 @app.post("/api/create/rasmiy")
@@ -1008,6 +1028,7 @@ class LoveLetterForm(BaseModel):
     kimga: str
     matn: str
     kimdan: str
+    musiqa: str = ""
 
 
 @app.post("/api/create/sevishganlar")
@@ -1069,6 +1090,7 @@ def view_page(slug: str):
     else:
         raise HTTPException(status_code=404, detail="Noma turi topilmadi")
 
+    html = inject_music_player(html, data)
     return inject_action_bar(html)
 
 
@@ -1077,51 +1099,147 @@ def view_page(slug: str):
 #  (Chop etish, Yuklab olish, Ulashish, QR kod)
 # ============================================================
 
+def inject_music_player(html: str, data: dict) -> str:
+    musiqa = (data.get("musiqa") or "").strip()
+    if not musiqa:
+        return html
+
+    safe_url = musiqa.replace('"', "&quot;")
+    player = f"""
+<audio id="pg-bg-audio" src="{safe_url}" loop preload="auto"></audio>
+<button class="pg-music-btn" id="pg-music-toggle" type="button" aria-label="Musiqa">
+  <svg id="pg-music-icon" viewBox="0 0 24 24" fill="none"><path d="M9 18V5l12-2v13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.6"/><circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.6"/></svg>
+</button>
+<style>
+  .pg-music-btn {{
+    position: fixed; top: 18px; right: 18px; z-index: 70;
+    width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
+    background: rgba(15,17,22,0.85); color: rgba(255,255,255,0.85);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25); backdrop-filter: blur(8px);
+    transition: background 0.15s ease;
+  }}
+  .pg-music-btn:hover {{ background: rgba(30,33,40,0.95); }}
+  .pg-music-btn svg {{ width: 18px; height: 18px; }}
+  .pg-music-btn.muted {{ opacity: 0.55; }}
+  @keyframes pg-pulse {{ 0%,100% {{ transform: scale(1); }} 50% {{ transform: scale(1.08); }} }}
+  .pg-music-btn.playing {{ animation: pg-pulse 1.6s ease-in-out infinite; }}
+  @media print {{ .pg-music-btn {{ display: none !important; }} }}
+</style>
+<script>
+(function () {{
+  var audio = document.getElementById('pg-bg-audio');
+  var btn = document.getElementById('pg-music-toggle');
+  var playing = false;
+
+  function tryAutoplay() {{
+    audio.volume = 0.55;
+    audio.play().then(function () {{
+      playing = true;
+      btn.classList.add('playing');
+      btn.classList.remove('muted');
+    }}).catch(function () {{
+      playing = false;
+      btn.classList.add('muted');
+    }});
+  }}
+
+  btn.addEventListener('click', function () {{
+    if (playing) {{
+      audio.pause();
+      playing = false;
+      btn.classList.remove('playing');
+      btn.classList.add('muted');
+    }} else {{
+      audio.play().then(function () {{
+        playing = true;
+        btn.classList.add('playing');
+        btn.classList.remove('muted');
+      }}).catch(function () {{}});
+    }}
+  }});
+
+  tryAutoplay();
+  document.addEventListener('click', function onceUnlock() {{
+    if (!playing) {{ tryAutoplay(); }}
+    document.removeEventListener('click', onceUnlock);
+  }}, {{ once: true }});
+}})();
+</script>
+"""
+    if "</body>" in html:
+        return html.replace("</body>", player + "</body>", 1)
+    return html + player
+
+
 ACTION_BAR_BLOCK = r"""
 <div class="pg-action-bar" id="pg-action-bar">
-  <button class="pg-btn" id="pg-print-btn" type="button">🖨️ Chop etish</button>
-  <button class="pg-btn" id="pg-download-btn" type="button">⬇️ Yuklab olish</button>
-  <button class="pg-btn" id="pg-share-btn" type="button">📤 Ulashish</button>
-  <button class="pg-btn" id="pg-qr-btn" type="button">▦ QR kod</button>
+  <button class="pg-btn" id="pg-print-btn" type="button" aria-label="Chop etish">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M6 14h12v7H6v-7Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Chop etish</span>
+  </button>
+  <button class="pg-btn" id="pg-download-btn" type="button" aria-label="Yuklab olish">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Yuklab olish</span>
+  </button>
+  <button class="pg-btn" id="pg-share-btn" type="button" aria-label="Ulashish">
+    <svg viewBox="0 0 24 24" fill="none"><circle cx="18" cy="5" r="2.4" stroke="currentColor" stroke-width="1.6"/><circle cx="6" cy="12" r="2.4" stroke="currentColor" stroke-width="1.6"/><circle cx="18" cy="19" r="2.4" stroke="currentColor" stroke-width="1.6"/><path d="M8.1 10.7 15.9 6.3M8.1 13.3l7.8 4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <span>Ulashish</span>
+  </button>
+  <button class="pg-btn" id="pg-qr-btn" type="button" aria-label="QR kod">
+    <svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="14.5" y="3.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.6"/><rect x="3.5" y="14.5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.6"/><path d="M14.5 14.5h2.6v2.6h-2.6zM19.5 14.5H21v2h-1.5zM14.5 19.5h2v1.5h-2zM19.5 19.3h1.5v1.7h-1.5z" fill="currentColor"/></svg>
+    <span>QR kod</span>
+  </button>
 </div>
 
 <div class="pg-qr-modal" id="pg-qr-modal">
   <div class="pg-qr-inner">
-    <img id="pg-qr-img" alt="QR kod" width="220" height="220">
+    <img id="pg-qr-img" alt="QR kod" width="200" height="200">
     <p>Havolani telefon kamerasi bilan skanerlang</p>
-    <button class="pg-btn pg-qr-close" id="pg-qr-close" type="button">Yopish</button>
+    <button class="pg-btn pg-qr-close" id="pg-qr-close" type="button"><span>Yopish</span></button>
   </div>
 </div>
 
 <style>
   .pg-action-bar {
-    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
-    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
-    background: rgba(18,18,18,0.82); padding: 10px 12px; border-radius: 30px;
-    z-index: 60; backdrop-filter: blur(6px); max-width: 94vw;
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+    background: rgba(15,17,22,0.92); padding: 8px; border-radius: 18px;
+    z-index: 60; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    max-width: 94vw; box-shadow: 0 8px 28px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
   }
   .pg-btn {
     font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 500;
-    background: rgba(255,255,255,0.14); color: #fff; border: none;
-    border-radius: 20px; padding: 9px 14px; cursor: pointer; white-space: nowrap;
-    transition: background 0.15s ease;
+    background: transparent; color: rgba(255,255,255,0.88); border: none;
+    border-radius: 12px; padding: 9px 13px; cursor: pointer; white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+    display: inline-flex; align-items: center; gap: 7px;
   }
-  .pg-btn:hover { background: rgba(255,255,255,0.26); }
+  .pg-btn svg { width: 16px; height: 16px; flex-shrink: 0; color: rgba(255,255,255,0.7); transition: color 0.15s ease; }
+  .pg-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .pg-btn:hover svg { color: #fff; }
+  .pg-btn span { line-height: 1; }
+  @media (max-width: 420px) {
+    .pg-btn span { display: none; }
+    .pg-btn { padding: 11px; border-radius: 50%; }
+  }
   .pg-qr-modal {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+    display: none; position: fixed; inset: 0; background: rgba(10,12,16,0.75);
     z-index: 100; align-items: center; justify-content: center; padding: 20px;
+    backdrop-filter: blur(3px);
   }
   .pg-qr-modal.active { display: flex; }
   .pg-qr-inner {
-    background: #fff; border-radius: 14px; padding: 26px 24px; text-align: center;
-    max-width: 280px; width: 100%;
+    background: #fff; border-radius: 18px; padding: 28px 26px 22px; text-align: center;
+    max-width: 280px; width: 100%; box-shadow: 0 24px 60px rgba(0,0,0,0.35);
   }
-  .pg-qr-inner img { border-radius: 6px; }
+  .pg-qr-inner img { border-radius: 8px; border: 1px solid #EEE; padding: 6px; }
   .pg-qr-inner p {
-    font-family: 'Inter', sans-serif; font-size: 12.5px; color: #444;
-    margin: 14px 0 16px; line-height: 1.5;
+    font-family: 'Inter', sans-serif; font-size: 12.5px; color: #5A5F6B;
+    margin: 16px 0 18px; line-height: 1.5;
   }
-  .pg-qr-close { background: #1B2430 !important; }
+  .pg-qr-close { background: #1B2430 !important; color: #fff !important; justify-content: center; width: 100%; padding: 11px !important; }
   .pg-qr-close:hover { background: #2A3648 !important; }
   @media print {
     .pg-action-bar, .pg-qr-modal { display: none !important; }
@@ -1174,18 +1292,19 @@ ACTION_BAR_BLOCK = r"""
     downloadBtn.addEventListener('click', function () {
       var bar = document.getElementById('pg-action-bar');
       var originalDisplay = bar.style.display;
+      var originalOpacity = downloadBtn.style.opacity;
       bar.style.display = 'none';
-      downloadBtn.textContent = '...';
+      downloadBtn.style.opacity = '0.5';
       html2canvas(document.body, { backgroundColor: null, scale: 2, useCORS: true }).then(function (canvas) {
         bar.style.display = originalDisplay;
-        downloadBtn.textContent = '⬇️ Yuklab olish';
+        downloadBtn.style.opacity = originalOpacity;
         var link = document.createElement('a');
         link.download = 'noma.png';
         link.href = canvas.toDataURL('image/png');
         link.click();
       }).catch(function () {
         bar.style.display = originalDisplay;
-        downloadBtn.textContent = '⬇️ Yuklab olish';
+        downloadBtn.style.opacity = originalOpacity;
       });
     });
   }
