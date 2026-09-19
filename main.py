@@ -157,6 +157,11 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 .btn-map-pick { align-self: flex-start; font-family: 'Inter', sans-serif; font-size: 13px; background: rgba(184,144,90,0.12); border: 1px solid var(--brass); color: var(--brass-light); border-radius: 3px; padding: 9px 14px; cursor: pointer; }
 .btn-map-pick:hover { background: rgba(184,144,90,0.2); }
 .map-preview { font-size: 12px; color: var(--text-on-ink-dim); margin: 0; }
+.photo-field { display: flex; flex-direction: column; gap: 6px; }
+.photo-field input[type="file"] { font-family: 'Inter', sans-serif; font-size: 12.5px; color: var(--text-on-ink-dim); }
+.photo-field input[type="file"]::file-selector-button { font-family: 'Inter', sans-serif; font-size: 12.5px; background: rgba(184,144,90,0.12); border: 1px solid var(--brass); color: var(--brass-light); border-radius: 3px; padding: 7px 12px; cursor: pointer; margin-right: 8px; }
+.photo-field input[type="url"] { font-family: 'Inter', sans-serif; font-size: 13px; background: rgba(239, 232, 214, 0.05); border: 1px solid rgba(239, 232, 214, 0.16); border-radius: 3px; padding: 9px 12px; color: var(--text-on-ink); }
+.photo-preview-note { font-size: 12px; color: var(--brass-light); margin: 0; min-height: 14px; }
 .map-modal { display: none; position: fixed; inset: 0; background: rgba(10,14,20,0.75); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
 .map-modal.active { display: flex; }
 .map-modal-inner { background: var(--parchment); border-radius: 6px; padding: 16px; max-width: 480px; width: 100%; }
@@ -565,13 +570,55 @@ tplCards.forEach(card => {
   });
 });
 
-// --- Har bir formaga "Fon musiqasi" maydonini avtomatik qo'shish ---
+// --- Har bir formaga "Fon musiqasi" va "Rasm" maydonlarini avtomatik qo'shish ---
 document.querySelectorAll('.app-form').forEach(form => {
   const submitBtn = form.querySelector('button[type="submit"]');
-  if (submitBtn && !form.querySelector('[name="musiqa"]')) {
-    const label = document.createElement('label');
-    label.innerHTML = 'Fon musiqasi (ixtiyoriy, mp3 havolasi)<input type="url" name="musiqa" placeholder="https://.../musiqa.mp3">';
-    form.insertBefore(label, submitBtn);
+  if (!submitBtn) return;
+
+  if (!form.querySelector('[name="musiqa"]')) {
+    const musicLabel = document.createElement('label');
+    musicLabel.innerHTML = 'Fon musiqasi (ixtiyoriy, mp3 havolasi)<input type="url" name="musiqa" placeholder="https://.../musiqa.mp3">';
+    form.insertBefore(musicLabel, submitBtn);
+  }
+
+  if (!form.querySelector('[name="rasm"]')) {
+    const wrap = document.createElement('div');
+    wrap.className = 'photo-field';
+    wrap.innerHTML =
+      '<span class="map-field-label">Rasm (ixtiyoriy)</span>' +
+      '<input type="hidden" name="rasm">' +
+      '<input type="file" class="photo-file-input" accept="image/*">' +
+      '<input type="url" class="photo-url-input" placeholder="yoki rasm havolasi (URL)">' +
+      '<p class="photo-preview-note"></p>';
+    form.insertBefore(wrap, submitBtn);
+
+    const hiddenInput = wrap.querySelector('[name="rasm"]');
+    const fileInput = wrap.querySelector('.photo-file-input');
+    const urlInput = wrap.querySelector('.photo-url-input');
+    const note = wrap.querySelector('.photo-preview-note');
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        hiddenInput.value = reader.result;
+        urlInput.value = '';
+        note.textContent = "Rasm tanlandi: " + file.name;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    urlInput.addEventListener('input', () => {
+      if (urlInput.value.trim()) {
+        hiddenInput.value = urlInput.value.trim();
+        fileInput.value = '';
+        note.textContent = 'Havola orqali rasm qo\u2019shiladi.';
+      } else if (!fileInput.files.length) {
+        hiddenInput.value = '';
+        note.textContent = '';
+      }
+    });
   }
 });
 
@@ -695,6 +742,7 @@ class ToyForm(BaseModel):
     manzil: str
     xarita_link: str = ""
     musiqa: str = ""
+    rasm: str = ""
 
 
 @app.post("/api/create/toy")
@@ -730,6 +778,7 @@ class BirthdayForm(BaseModel):
     xarita_link: str = ""
     xabar: str = ""
     musiqa: str = ""
+    rasm: str = ""
 
 
 @app.post("/api/create/tugilgan-kun")
@@ -763,6 +812,7 @@ class ExplanationForm(BaseModel):
     kimdan: str
     sana: str
     musiqa: str = ""
+    rasm: str = ""
 
 
 @app.post("/api/create/tushuntirish")
@@ -796,6 +846,7 @@ class ReminderForm(BaseModel):
     muddat: str
     kimdan: str
     musiqa: str = ""
+    rasm: str = ""
 
 
 @app.post("/api/create/eslatma")
@@ -830,6 +881,7 @@ class GuaranteeForm(BaseModel):
     shartlar: str = ""
     beruvchi: str
     musiqa: str = ""
+    rasm: str = ""
 
 
 @app.post("/api/create/kafolat")
@@ -864,6 +916,7 @@ class ParentGuaranteeForm(BaseModel):
     vada: str
     sana: str
     musiqa: str = ""
+    rasm: str = ""
 
 
 @app.post("/api/create/ota-ona-kafolat")
@@ -895,6 +948,7 @@ class BirthdayGreetingForm(BaseModel):
     tabrik: str
     kimdan: str
     musiqa: str = ""
+    rasm: str = ""
 
 
 @app.post("/api/create/tugilgan-kun-tabrik")
@@ -929,6 +983,7 @@ class CradleForm(BaseModel):
     manzil: str
     xarita_link: str = ""
     musiqa: str = ""
+    rasm: str = ""
 
 
 @app.post("/api/create/beshik")
@@ -963,6 +1018,7 @@ class GraduationForm(BaseModel):
     manzil: str
     xarita_link: str = ""
     musiqa: str = ""
+    rasm: str = ""
 
 
 @app.post("/api/create/bitiruv")
@@ -998,6 +1054,7 @@ class OfficialEventForm(BaseModel):
     xarita_link: str = ""
     tavsif: str = ""
     musiqa: str = ""
+    rasm: str = ""
 
 
 @app.post("/api/create/rasmiy")
@@ -1029,6 +1086,7 @@ class LoveLetterForm(BaseModel):
     matn: str
     kimdan: str
     musiqa: str = ""
+    rasm: str = ""
 
 
 @app.post("/api/create/sevishganlar")
@@ -1090,6 +1148,7 @@ def view_page(slug: str):
     else:
         raise HTTPException(status_code=404, detail="Noma turi topilmadi")
 
+    html = inject_photo(html, data)
     html = inject_music_player(html, data)
     return inject_action_bar(html)
 
@@ -1098,6 +1157,37 @@ def view_page(slug: str):
 #  HAR BIR NATIJA SAHIFASIGA QO'SHILADIGAN AMALLAR PANELI
 #  (Chop etish, Yuklab olish, Ulashish, QR kod)
 # ============================================================
+
+def inject_photo(html: str, data: dict) -> str:
+    rasm = (data.get("rasm") or "").strip()
+    if not rasm:
+        return html
+
+    safe_src = rasm.replace('"', "&quot;")
+    photo_css = (
+        '<style>.pg-photo{width:112px;height:112px;border-radius:50%;'
+        "object-fit:cover;display:block;margin:0 auto 22px;"
+        "box-shadow:0 10px 28px rgba(0,0,0,0.22);"
+        'border:3px solid rgba(255,255,255,0.85);}</style>'
+    )
+    if "</head>" in html:
+        html = html.replace("</head>", photo_css + "</head>", 1)
+    else:
+        html = photo_css + html
+
+    photo_html = f'<img src="{safe_src}" alt="rasm" class="pg-photo">'
+    body_idx = html.find("<body>")
+    if body_idx == -1:
+        return html
+    div_idx = html.find("<div", body_idx)
+    if div_idx == -1:
+        return html
+    tag_end = html.find(">", div_idx)
+    if tag_end == -1:
+        return html
+    insertion_point = tag_end + 1
+    return html[:insertion_point] + photo_html + html[insertion_point:]
+
 
 def inject_music_player(html: str, data: dict) -> str:
     musiqa = (data.get("musiqa") or "").strip()
