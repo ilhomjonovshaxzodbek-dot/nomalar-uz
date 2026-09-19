@@ -109,14 +109,34 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 .seal svg { width: 100%; height: 100%; }
 .seal circle { fill: var(--brass); }
 .seal path { fill: var(--ink); }
-.screen { display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 100px 24px 48px; position: relative; }
+.screen { display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 100px 24px 48px; position: relative; z-index: 1; }
+.bg-decor { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.bg-orb { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.32; will-change: transform; }
+.bg-orb.o1 { width: 420px; height: 420px; background: radial-gradient(circle, var(--brass) 0%, transparent 70%); top: -140px; left: -120px; animation: drift1 20s ease-in-out infinite; }
+.bg-orb.o2 { width: 380px; height: 380px; background: radial-gradient(circle, #5C7A9E 0%, transparent 70%); bottom: -160px; right: -100px; animation: drift2 24s ease-in-out infinite; }
+.bg-orb.o3 { width: 300px; height: 300px; background: radial-gradient(circle, #9E5C7A 0%, transparent 70%); top: 40%; left: 60%; animation: drift3 28s ease-in-out infinite; }
+.bg-grid { position: absolute; inset: -10%; background-image: radial-gradient(rgba(239,232,214,0.07) 1px, transparent 1px); background-size: 30px 30px; mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 0%, transparent 75%); -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 0%, transparent 75%); animation: gridshift 60s linear infinite; }
+@keyframes drift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(50px,70px) scale(1.12); } }
+@keyframes drift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-60px,-50px) scale(1.15); } }
+@keyframes drift3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-40px,40px) scale(0.9); } }
+@keyframes gridshift { 0% { background-position: 0 0; } 100% { background-position: 60px 60px; } }
+@media (max-width: 600px) {
+  .bg-orb { filter: blur(46px); opacity: 0.26; }
+  .bg-orb.o1 { width: 260px; height: 260px; }
+  .bg-orb.o2 { width: 240px; height: 240px; }
+  .bg-orb.o3 { width: 200px; height: 200px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bg-orb, .bg-grid { animation: none; }
+}
 .screen.active { display: flex; }
 .intro-wrap { text-align: center; max-width: 420px; animation: rise 0.8s ease both; }
-.brand-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 56px; margin: 0 0 12px; color: var(--parchment); }
-.brand-title .dot { color: var(--brass); }
+.brand-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 56px; margin: 0 0 12px; background: linear-gradient(100deg, var(--parchment) 30%, var(--brass-light) 45%, var(--parchment) 60%); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 5s ease-in-out infinite; }
+.brand-title .dot { color: var(--brass); -webkit-text-fill-color: var(--brass); }
+@keyframes shimmer { 0% { background-position: 0% 0; } 50% { background-position: 100% 0; } 100% { background-position: 0% 0; } }
 .intro-sub { color: var(--text-on-ink-dim); font-size: 15px; margin: 0 0 40px; }
-.btn-primary { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.02em; background: var(--brass); color: var(--ink-deep); border: none; border-radius: 2px; padding: 14px 36px; cursor: pointer; transition: background 0.2s ease, transform 0.15s ease; }
-.btn-primary:hover { background: var(--brass-light); }
+.btn-primary { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.02em; background: var(--brass); color: var(--ink-deep); border: none; border-radius: 2px; padding: 14px 36px; cursor: pointer; transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.3s ease; box-shadow: 0 0 0 rgba(184,144,90,0); }
+.btn-primary:hover { background: var(--brass-light); box-shadow: 0 6px 26px rgba(184,144,90,0.35); transform: translateY(-1px); }
 .btn-primary:active { transform: scale(0.98); }
 .btn-primary:focus-visible { outline: 2px solid var(--parchment); outline-offset: 3px; }
 .explain-wrap { max-width: 420px; width: 100%; text-align: center; }
@@ -179,6 +199,13 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 </style>
 </head>
 <body>
+
+<div class="bg-decor" aria-hidden="true">
+  <div class="bg-grid"></div>
+  <div class="bg-orb o1"></div>
+  <div class="bg-orb o2"></div>
+  <div class="bg-orb o3"></div>
+</div>
 
 <div class="seal" aria-hidden="true">
   <svg viewBox="0 0 100 100">
