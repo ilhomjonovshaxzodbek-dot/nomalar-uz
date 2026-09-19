@@ -240,6 +240,9 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
       <button class="tpl-card" data-tpl="ota-ona-kafolat"><span class="tpl-mark">09</span><span class="tpl-name">Ota-ona kafolat xati</span></button>
       <button class="tpl-card" data-tpl="tugilgan-kun-tabrik"><span class="tpl-mark">10</span><span class="tpl-name">Tug'ilgan kun tabrigi</span></button>
       <button class="tpl-card" data-tpl="sevishganlar"><span class="tpl-mark">11</span><span class="tpl-name">Sevishganlar xati</span></button>
+      <button class="tpl-card" data-tpl="vizitka"><span class="tpl-mark">12</span><span class="tpl-name">Vizitka</span></button>
+      <button class="tpl-card" data-tpl="rezyume"><span class="tpl-mark">13</span><span class="tpl-name">Rezyume / CV</span></button>
+      <button class="tpl-card" data-tpl="minnatdorchilik"><span class="tpl-mark">14</span><span class="tpl-name">Minnatdorchilik xati</span></button>
     </div>
     <p class="next-note" id="next-note">Tanlang — keyingi bosqichda forma ochiladi.</p>
   </div>
@@ -483,6 +486,63 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 </section>
 
 
+<section id="screen-form-vizitka" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Vizitka ma'lumotlari</h2>
+    <form id="form-vizitka" class="app-form">
+      <label>Ism Familiya<input type="text" name="ism" placeholder="Sardor Aliyev" required></label>
+      <label>Lavozim / kasb<input type="text" name="lavozim" placeholder="Veb-dasturchi" required></label>
+      <label>Telefon<input type="text" name="telefon" placeholder="+998 90 123 45 67" required></label>
+      <label>Email (ixtiyoriy)<input type="email" name="email" placeholder="sardor@mail.com"></label>
+      <label>Ijtimoiy tarmoq / sayt (ixtiyoriy)<input type="text" name="tarmoq" placeholder="t.me/username yoki instagram"></label>
+      <label>Qisqa tavsif (ixtiyoriy)<input type="text" name="tavsif" placeholder="Frontend va backend bo'yicha mutaxassis"></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-vizitka-error"></p>
+    </form>
+  </div>
+</section>
+
+
+<section id="screen-form-rezyume" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Rezyume / CV</h2>
+    <form id="form-rezyume" class="app-form">
+      <label>Ism Familiya<input type="text" name="ism" placeholder="Sardor Aliyev" required></label>
+      <label>Lavozim / maqsad<input type="text" name="lavozim" placeholder="Backend dasturchi" required></label>
+      <div class="row-2">
+        <label>Telefon<input type="text" name="telefon" placeholder="+998 90 123 45 67" required></label>
+        <label>Email<input type="email" name="email" placeholder="sardor@mail.com"></label>
+      </div>
+      <label>Ish tajribasi<textarea name="tajriba" rows="4" placeholder="2023-2026: ABC kompaniyasida backend dasturchi..." required></textarea></label>
+      <label>Ko'nikmalar (ixtiyoriy)<textarea name="konikmalar" rows="3" placeholder="Python, FastAPI, SQL, Git..."></textarea></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-rezyume-error"></p>
+    </form>
+  </div>
+</section>
+
+
+<section id="screen-form-minnatdorchilik" class="screen">
+  <button class="btn-back" data-back="screen-templates">&larr; Orqaga</button>
+  <div class="form-wrap">
+    <p class="eyebrow">2-qadam</p>
+    <h2 class="section-title">Minnatdorchilik xati</h2>
+    <form id="form-minnatdorchilik" class="app-form">
+      <label>Kimga<input type="text" name="kimga" placeholder="Jamoa a'zosi yoki hamkor ismi" required></label>
+      <label>Xat matni<textarea name="matn" rows="5" placeholder="Sizning mehnatingiz va sadoqatingiz uchun minnatdormiz..." required></textarea></label>
+      <label>Kimdan<input type="text" name="kimdan" placeholder="Ism Familiya yoki kompaniya" required></label>
+      <label>Sana<input type="date" name="sana" required></label>
+      <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
+      <p class="form-error" id="form-minnatdorchilik-error"></p>
+    </form>
+  </div>
+</section>
+
+
 <section id="screen-result" class="screen">
   <div class="result-wrap">
     <p class="eyebrow">Tayyor</p>
@@ -568,6 +628,9 @@ tplCards.forEach(card => {
     else if (tpl === 'bitiruv') { showScreen('screen-form-bitiruv'); }
     else if (tpl === 'rasmiy') { showScreen('screen-form-rasmiy'); }
     else if (tpl === 'sevishganlar') { showScreen('screen-form-sevishganlar'); }
+    else if (tpl === 'vizitka') { showScreen('screen-form-vizitka'); }
+    else if (tpl === 'rezyume') { showScreen('screen-form-rezyume'); }
+    else if (tpl === 'minnatdorchilik') { showScreen('screen-form-minnatdorchilik'); }
     else { nextNote.textContent = `"${tplName}" formasi tez orada qo'shiladi.`; }
   });
 });
@@ -584,7 +647,10 @@ const defaultAccentColors = {
   'form-beshik': '#8E7CC3',
   'form-bitiruv': '#D4AF37',
   'form-rasmiy': '#2455A4',
-  'form-sevishganlar': '#B0475F'
+  'form-sevishganlar': '#B0475F',
+  'form-vizitka': '#4A9B8E',
+  'form-rezyume': '#2C4A6B',
+  'form-minnatdorchilik': '#B9862F'
 };
 
 document.querySelectorAll('.app-form').forEach(form => {
@@ -723,6 +789,9 @@ setupForm('form-beshik', 'form-beshik-error', '/api/create/beshik');
 setupForm('form-bitiruv', 'form-bitiruv-error', '/api/create/bitiruv');
 setupForm('form-rasmiy', 'form-rasmiy-error', '/api/create/rasmiy');
 setupForm('form-sevishganlar', 'form-sevishganlar-error', '/api/create/sevishganlar');
+setupForm('form-vizitka', 'form-vizitka-error', '/api/create/vizitka');
+setupForm('form-rezyume', 'form-rezyume-error', '/api/create/rezyume');
+setupForm('form-minnatdorchilik', 'form-minnatdorchilik-error', '/api/create/minnatdorchilik');
 
 // --- Xaritadan joy tanlash ---
 let mapInstance = null;
@@ -1180,6 +1249,112 @@ def create_love_letter(form: LoveLetterForm):
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
+# ============================================================
+#  VIZITKA — FORMA VA NATIJA
+# ============================================================
+
+class VizitkaForm(BaseModel):
+    ism: str
+    lavozim: str
+    telefon: str
+    email: str = ""
+    tarmoq: str = ""
+    tavsif: str = ""
+    musiqa: str = ""
+    rasm: str = ""
+    rang: str = ""
+
+
+@app.post("/api/create/vizitka")
+def create_vizitka(form: VizitkaForm):
+    if not form.ism.strip() or not form.lavozim.strip() or not form.telefon.strip():
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.ism}-vizitka")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("vizitka", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
+# ============================================================
+#  REZYUME / CV — FORMA VA NATIJA
+# ============================================================
+
+class ResumeForm(BaseModel):
+    ism: str
+    lavozim: str
+    telefon: str
+    email: str = ""
+    tajriba: str
+    konikmalar: str = ""
+    musiqa: str = ""
+    rasm: str = ""
+    rang: str = ""
+
+
+@app.post("/api/create/rezyume")
+def create_resume(form: ResumeForm):
+    if not form.ism.strip() or not form.lavozim.strip() or not form.telefon.strip() or not form.tajriba.strip():
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.ism}-rezyume")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("rezyume", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
+# ============================================================
+#  MINNATDORCHILIK XATI — FORMA VA NATIJA
+# ============================================================
+
+class ThanksForm(BaseModel):
+    kimga: str
+    matn: str
+    kimdan: str
+    sana: str
+    musiqa: str = ""
+    rasm: str = ""
+    rang: str = ""
+
+
+@app.post("/api/create/minnatdorchilik")
+def create_thanks(form: ThanksForm):
+    if not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip() or not form.sana:
+        raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
+
+    base = slugify(f"{form.kimdan}-minnatdorchilik")
+    slug = unique_slug(base)
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO pages (template_type, slug, data) VALUES (?, ?, ?)",
+        ("minnatdorchilik", slug, json.dumps(form.dict(), ensure_ascii=False)),
+    )
+    conn.commit()
+    conn.close()
+
+    return {"slug": slug, "url": f"/n/{slug}"}
+
+
 @app.get("/n/{slug}", response_class=HTMLResponse)
 def view_page(slug: str):
     conn = sqlite3.connect(DB_PATH)
@@ -1216,6 +1391,12 @@ def view_page(slug: str):
         html = render_official_event_page(data)
     elif template_type == "sevishganlar":
         html = render_love_letter_page(data)
+    elif template_type == "vizitka":
+        html = render_vizitka_page(data)
+    elif template_type == "rezyume":
+        html = render_resume_page(data)
+    elif template_type == "minnatdorchilik":
+        html = render_thanks_page(data)
     else:
         raise HTTPException(status_code=404, detail="Noma turi topilmadi")
 
@@ -2184,6 +2365,201 @@ def render_love_letter_page(data: dict) -> str:
   <p class="kimga">{kimga}</p>
   <p class="matn">{matn}</p>
   <p class="kimdan">— {kimdan}</p>
+</div>
+</body>
+</html>"""
+
+
+def render_vizitka_page(data: dict) -> str:
+    ism = escape_html(data["ism"])
+    lavozim = escape_html(data["lavozim"])
+    telefon = escape_html(data["telefon"])
+    email = escape_html(data.get("email") or "")
+    tarmoq = escape_html(data.get("tarmoq") or "")
+    tavsif = escape_html(data.get("tavsif") or "")
+    accent = data.get("rang") or "#4A9B8E"
+
+    email_html = f'<p class="contact-row"><span class="ic">✉</span> {email}</p>' if email else ""
+    tarmoq_html = f'<p class="contact-row"><span class="ic">🔗</span> {tarmoq}</p>' if tarmoq else ""
+    tavsif_html = f'<p class="tavsif">{tavsif}</p>' if tavsif else ""
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{ism} — vizitka</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: #14181C;
+    color: #E7EBEE;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 60px 20px;
+  }}
+  .card {{
+    max-width: 400px; width: 100%;
+    background: #1C2126;
+    border-radius: 18px;
+    padding: 40px 34px;
+    border-top: 3px solid {accent};
+    box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+  }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: {accent}; margin: 0 0 18px; font-weight: 500; }}
+  .name {{ font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 30px; color: #FFFFFF; margin: 0 0 4px; }}
+  .lavozim {{ font-size: 14px; color: #9AA4AC; margin: 0 0 28px; }}
+  .contacts {{ border-top: 1px solid rgba(255,255,255,0.08); padding-top: 22px; }}
+  .contact-row {{ font-size: 14px; margin: 8px 0; display: flex; align-items: center; gap: 10px; }}
+  .contact-row .ic {{ color: {accent}; font-size: 15px; width: 18px; text-align: center; }}
+  .tavsif {{ font-size: 13px; color: #B7BEC5; line-height: 1.6; margin-top: 22px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); }}
+</style>
+</head>
+<body>
+<div class="card">
+  <p class="eyebrow">Vizitka</p>
+  <p class="name">{ism}</p>
+  <p class="lavozim">{lavozim}</p>
+  <div class="contacts">
+    <p class="contact-row"><span class="ic">☎</span> {telefon}</p>
+    {email_html}
+    {tarmoq_html}
+  </div>
+  {tavsif_html}
+</div>
+</body>
+</html>"""
+
+
+def render_resume_page(data: dict) -> str:
+    ism = escape_html(data["ism"])
+    lavozim = escape_html(data["lavozim"])
+    telefon = escape_html(data["telefon"])
+    email = escape_html(data.get("email") or "")
+    tajriba = escape_html(data["tajriba"]).replace("\n", "<br>")
+    konikmalar = escape_html(data.get("konikmalar") or "").replace("\n", "<br>")
+    accent = data.get("rang") or "#2C4A6B"
+
+    email_html = f' &middot; {email}' if email else ""
+    konikmalar_html = ""
+    if konikmalar:
+        konikmalar_html = f"""
+  <div class="section">
+    <p class="section-title">Ko'nikmalar</p>
+    <p class="section-body">{konikmalar}</p>
+  </div>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{ism} — rezyume</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: #F0F2F4;
+    color: #232A32;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 48px 20px;
+  }}
+  .sheet {{
+    max-width: 560px; width: 100%;
+    background: #FFFFFF;
+    padding: 46px 44px;
+    box-shadow: 0 6px 28px rgba(0,0,0,0.08);
+    border-radius: 4px;
+  }}
+  .header {{ border-bottom: 3px solid {accent}; padding-bottom: 22px; margin-bottom: 26px; }}
+  .name {{ font-family: 'Libre Franklin', sans-serif; font-weight: 700; font-size: 30px; color: #1B222B; margin: 0 0 4px; }}
+  .lavozim {{ font-size: 15px; color: {accent}; font-weight: 600; margin: 0 0 12px; }}
+  .contact-line {{ font-size: 13px; color: #6B7686; }}
+  .section {{ margin-bottom: 24px; }}
+  .section-title {{ font-family: 'Libre Franklin', sans-serif; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: {accent}; font-weight: 700; margin: 0 0 10px; }}
+  .section-body {{ font-size: 14.5px; line-height: 1.7; color: #333B44; margin: 0; }}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="header">
+    <p class="name">{ism}</p>
+    <p class="lavozim">{lavozim}</p>
+    <p class="contact-line">{telefon}{email_html}</p>
+  </div>
+  <div class="section">
+    <p class="section-title">Ish tajribasi</p>
+    <p class="section-body">{tajriba}</p>
+  </div>
+  {konikmalar_html}
+</div>
+</body>
+</html>"""
+
+
+def render_thanks_page(data: dict) -> str:
+    kimga = escape_html(data["kimga"])
+    matn = escape_html(data["matn"]).replace("\n", "<br>")
+    kimdan = escape_html(data["kimdan"])
+    sana = data["sana"]
+    accent = data.get("rang") or "#B9862F"
+
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minnatdorchilik xati — {kimga}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; min-height: 100vh;
+    background: #FBF6EC;
+    color: #3E3421;
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 48px 20px;
+  }}
+  .card {{
+    max-width: 460px; width: 100%;
+    background: #FFFFFF;
+    padding: 46px 40px;
+    text-align: center;
+    border: 1px solid #EAD9AE;
+    position: relative;
+  }}
+  .card::before {{
+    content: "";
+    position: absolute; inset: 10px;
+    border: 1px solid {accent}55;
+    pointer-events: none;
+  }}
+  .icon {{ font-size: 28px; margin-bottom: 8px; }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: {accent}; margin: 0 0 18px; font-weight: 600; }}
+  .kimga {{ font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 600; font-size: 28px; color: #2E2712; margin: 0 0 22px; }}
+  .matn {{ font-size: 15px; line-height: 1.75; color: #4A4028; margin: 0 0 28px; }}
+  .signoff {{ border-top: 1px solid #EAD9AE; padding-top: 18px; font-size: 13px; color: #7A6A42; }}
+  .signoff strong {{ display: block; font-family: 'Cormorant Garamond', serif; font-size: 17px; color: {accent}; margin-bottom: 2px; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">🙏</div>
+  <p class="eyebrow">Minnatdorchilik xati</p>
+  <p class="kimga">{kimga}</p>
+  <p class="matn">{matn}</p>
+  <div class="signoff">
+    <strong>{kimdan}</strong>
+    {sana}
+  </div>
 </div>
 </body>
 </html>"""
