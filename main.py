@@ -1501,7 +1501,45 @@ def view_page(slug: str):
 
     html = inject_photo(html, data)
     html = inject_music_player(html, data)
+    html = inject_tilt_effect(html)
     return inject_action_bar(html)
+
+
+# ============================================================
+#  NATIJA SAHIFALARIGA 3D TILT (SICHQONCHA BILAN EGILISH) EFFEKTI
+# ============================================================
+
+TILT_SCRIPT = r"""
+<style>
+  body { perspective: 1400px; }
+</style>
+<script>
+(function () {
+  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+  var card = document.body.firstElementChild;
+  if (!card) return;
+  card.style.transition = 'transform 0.35s cubic-bezier(0.22,1,0.36,1)';
+  card.style.willChange = 'transform';
+  card.addEventListener('mousemove', function (e) {
+    var r = card.getBoundingClientRect();
+    var px = (e.clientX - r.left) / r.width - 0.5;
+    var py = (e.clientY - r.top) / r.height - 0.5;
+    var rx = (-py * 6).toFixed(2);
+    var ry = (px * 6).toFixed(2);
+    card.style.transform = 'perspective(1000px) rotateX(' + rx + 'deg) rotateY(' + ry + 'deg) translateY(-2px)';
+  });
+  card.addEventListener('mouseleave', function () {
+    card.style.transform = '';
+  });
+})();
+</script>
+"""
+
+
+def inject_tilt_effect(html: str) -> str:
+    if "</body>" in html:
+        return html.replace("</body>", TILT_SCRIPT + "</body>", 1)
+    return html + TILT_SCRIPT
 
 
 # ============================================================
