@@ -162,6 +162,8 @@ html, body { margin: 0; padding: 0; background: var(--ink); color: var(--text-on
 .photo-field input[type="file"]::file-selector-button { font-family: 'Inter', sans-serif; font-size: 12.5px; background: rgba(184,144,90,0.12); border: 1px solid var(--brass); color: var(--brass-light); border-radius: 3px; padding: 7px 12px; cursor: pointer; margin-right: 8px; }
 .photo-field input[type="url"] { font-family: 'Inter', sans-serif; font-size: 13px; background: rgba(239, 232, 214, 0.05); border: 1px solid rgba(239, 232, 214, 0.16); border-radius: 3px; padding: 9px 12px; color: var(--text-on-ink); }
 .photo-preview-note { font-size: 12px; color: var(--brass-light); margin: 0; min-height: 14px; }
+.color-field { display: flex; flex-direction: column; gap: 8px; }
+.color-field input[type="color"] { width: 52px; height: 36px; padding: 2px; border: 1px solid rgba(239, 232, 214, 0.16); border-radius: 4px; background: transparent; cursor: pointer; }
 .map-modal { display: none; position: fixed; inset: 0; background: rgba(10,14,20,0.75); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
 .map-modal.active { display: flex; }
 .map-modal-inner { background: var(--parchment); border-radius: 6px; padding: 16px; max-width: 480px; width: 100%; }
@@ -570,10 +572,34 @@ tplCards.forEach(card => {
   });
 });
 
-// --- Har bir formaga "Fon musiqasi" va "Rasm" maydonlarini avtomatik qo'shish ---
+// --- Har bir formaga "Fon musiqasi", "Rasm" va "Rang" maydonlarini avtomatik qo'shish ---
+const defaultAccentColors = {
+  'form-toy': '#5C7A5E',
+  'form-tugilgan-kun': '#E8724C',
+  'form-tushuntirish': '#2B3A55',
+  'form-eslatma': '#92702A',
+  'form-kafolat': '#C9A84C',
+  'form-ota-ona-kafolat': '#2C4A73',
+  'form-tugilgan-kun-tabrik': '#B0459A',
+  'form-beshik': '#8E7CC3',
+  'form-bitiruv': '#D4AF37',
+  'form-rasmiy': '#2455A4',
+  'form-sevishganlar': '#B0475F'
+};
+
 document.querySelectorAll('.app-form').forEach(form => {
   const submitBtn = form.querySelector('button[type="submit"]');
   if (!submitBtn) return;
+
+  if (!form.querySelector('[name="rang"]')) {
+    const defaultColor = defaultAccentColors[form.id] || '#B8905A';
+    const colorWrap = document.createElement('label');
+    colorWrap.className = 'color-field';
+    colorWrap.innerHTML =
+      'Asosiy rang (ixtiyoriy)' +
+      '<input type="color" name="rang" value="' + defaultColor + '">';
+    form.insertBefore(colorWrap, submitBtn);
+  }
 
   if (!form.querySelector('[name="musiqa"]')) {
     const musicWrap = document.createElement('div');
@@ -777,6 +803,7 @@ class ToyForm(BaseModel):
     xarita_link: str = ""
     musiqa: str = ""
     rasm: str = ""
+    rang: str = ""
 
 
 @app.post("/api/create/toy")
@@ -813,6 +840,7 @@ class BirthdayForm(BaseModel):
     xabar: str = ""
     musiqa: str = ""
     rasm: str = ""
+    rang: str = ""
 
 
 @app.post("/api/create/tugilgan-kun")
@@ -847,6 +875,7 @@ class ExplanationForm(BaseModel):
     sana: str
     musiqa: str = ""
     rasm: str = ""
+    rang: str = ""
 
 
 @app.post("/api/create/tushuntirish")
@@ -881,6 +910,7 @@ class ReminderForm(BaseModel):
     kimdan: str
     musiqa: str = ""
     rasm: str = ""
+    rang: str = ""
 
 
 @app.post("/api/create/eslatma")
@@ -916,6 +946,7 @@ class GuaranteeForm(BaseModel):
     beruvchi: str
     musiqa: str = ""
     rasm: str = ""
+    rang: str = ""
 
 
 @app.post("/api/create/kafolat")
@@ -951,6 +982,7 @@ class ParentGuaranteeForm(BaseModel):
     sana: str
     musiqa: str = ""
     rasm: str = ""
+    rang: str = ""
 
 
 @app.post("/api/create/ota-ona-kafolat")
@@ -983,6 +1015,7 @@ class BirthdayGreetingForm(BaseModel):
     kimdan: str
     musiqa: str = ""
     rasm: str = ""
+    rang: str = ""
 
 
 @app.post("/api/create/tugilgan-kun-tabrik")
@@ -1018,6 +1051,7 @@ class CradleForm(BaseModel):
     xarita_link: str = ""
     musiqa: str = ""
     rasm: str = ""
+    rang: str = ""
 
 
 @app.post("/api/create/beshik")
@@ -1053,6 +1087,7 @@ class GraduationForm(BaseModel):
     xarita_link: str = ""
     musiqa: str = ""
     rasm: str = ""
+    rang: str = ""
 
 
 @app.post("/api/create/bitiruv")
@@ -1089,6 +1124,7 @@ class OfficialEventForm(BaseModel):
     tavsif: str = ""
     musiqa: str = ""
     rasm: str = ""
+    rang: str = ""
 
 
 @app.post("/api/create/rasmiy")
@@ -1121,6 +1157,7 @@ class LoveLetterForm(BaseModel):
     kimdan: str
     musiqa: str = ""
     rasm: str = ""
+    rang: str = ""
 
 
 @app.post("/api/create/sevishganlar")
@@ -1450,6 +1487,7 @@ def render_toy_page(data: dict) -> str:
     vaqt = data["vaqt"]
     manzil = data["manzil"]
     xarita_link = data.get("xarita_link") or ""
+    accent = data.get("rang") or "#5C7A5E"
 
     map_html = ""
     if xarita_link:
@@ -1468,7 +1506,7 @@ def render_toy_page(data: dict) -> str:
   body {{ margin: 0; min-height: 100vh; background: #F6EFE4; color: #3B2E22; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; padding: 60px 20px; }}
   .card {{ max-width: 420px; text-align: center; }}
   .eyebrow {{ font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: #B98A5A; margin-bottom: 18px; }}
-  .names {{ font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 44px; color: #5C7A5E; margin: 0; }}
+  .names {{ font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 44px; color: {accent}; margin: 0; }}
   .amp {{ font-size: 20px; color: #C97A6D; margin: 10px 0; }}
   .tagline {{ font-size: 14px; color: #7A6A56; margin: 24px 0 40px; }}
   .details {{ border-top: 1px solid #D9C9AE; padding-top: 28px; }}
@@ -1478,7 +1516,7 @@ def render_toy_page(data: dict) -> str:
   .countdown div {{ background: #FFFDF8; border: 1px solid #E4D6BC; border-radius: 8px; padding: 12px 14px; min-width: 60px; }}
   .countdown span {{ display: block; font-family: 'Cormorant Garamond', serif; font-size: 24px; color: #C97A6D; }}
   .countdown small {{ font-size: 10px; letter-spacing: 0.08em; color: #7A6A56; text-transform: uppercase; }}
-  .map-link {{ display: inline-block; margin-top: 24px; font-size: 13px; color: #5C7A5E; text-decoration: underline; }}
+  .map-link {{ display: inline-block; margin-top: 24px; font-size: 13px; color: {accent}; text-decoration: underline; }}
 </style>
 </head>
 <body>
@@ -1524,6 +1562,7 @@ def render_toy_page(data: dict) -> str:
 
 
 def render_birthday_page(data: dict) -> str:
+    accent = data.get("rang") or "#E8724C"
     ism = data["ism"]
     yosh = data.get("yosh") or ""
     sana = data["sana"]
@@ -1563,14 +1602,14 @@ def render_birthday_page(data: dict) -> str:
     box-shadow: 0 20px 50px rgba(0,0,0,0.12);
   }}
   .balloons {{ font-size: 32px; margin-bottom: 8px; }}
-  .eyebrow {{ font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #E8724C; margin-bottom: 10px; font-weight: 500; }}
-  .name {{ font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 38px; color: #E8724C; margin: 0; }}
+  .eyebrow {{ font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: {accent}; margin-bottom: 10px; font-weight: 500; }}
+  .name {{ font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 38px; color: {accent}; margin: 0; }}
   .yosh {{ font-family: 'Baloo 2', sans-serif; font-weight: 600; font-size: 18px; color: #F2A65A; margin: 6px 0 0; }}
   .xabar {{ font-size: 14px; color: #6B4A3A; margin: 20px 0 30px; line-height: 1.6; }}
   .details {{ border-top: 2px dashed #F2C79E; padding-top: 24px; }}
   .details p {{ margin: 6px 0; font-size: 15px; }}
-  .details .label {{ font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #E8724C; font-weight: 500; }}
-  .map-link {{ display: inline-block; margin-top: 20px; font-size: 13px; color: #E8724C; font-weight: 500; text-decoration: underline; }}
+  .details .label {{ font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: {accent}; font-weight: 500; }}
+  .map-link {{ display: inline-block; margin-top: 20px; font-size: 13px; color: {accent}; font-weight: 500; text-decoration: underline; }}
 </style>
 </head>
 <body>
@@ -1601,6 +1640,7 @@ def escape_html(text: str) -> str:
 
 
 def render_explanation_page(data: dict) -> str:
+    accent = data.get("rang") or "#2B3A55"
     sarlavha = escape_html(data["sarlavha"])
     kimga = escape_html(data["kimga"])
     matn = escape_html(data["matn"]).replace("\n", "<br>")
@@ -1630,14 +1670,14 @@ def render_explanation_page(data: dict) -> str:
     background: #FFFFFF;
     padding: 48px 44px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-    border-top: 4px solid #2B3A55;
+    border-top: 4px solid {accent};
   }}
   .letterhead {{ font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #6B7686; margin: 0 0 32px; }}
-  .title {{ font-size: 26px; font-weight: 600; margin: 0 0 28px; color: #2B3A55; }}
+  .title {{ font-size: 26px; font-weight: 600; margin: 0 0 28px; color: {accent}; }}
   .addressee {{ font-family: 'Inter', sans-serif; font-size: 13px; color: #6B7686; margin: 0 0 24px; }}
   .body-text {{ font-size: 16px; line-height: 1.75; color: #2B3340; margin: 0 0 40px; }}
   .signoff {{ font-family: 'Inter', sans-serif; font-size: 13px; color: #6B7686; text-align: right; border-top: 1px solid #E4E7EC; padding-top: 20px; }}
-  .signoff strong {{ display: block; font-family: 'Source Serif 4', serif; font-size: 16px; color: #2B3A55; margin-bottom: 2px; }}
+  .signoff strong {{ display: block; font-family: 'Source Serif 4', serif; font-size: 16px; color: {accent}; margin-bottom: 2px; }}
 </style>
 </head>
 <body>
@@ -1656,6 +1696,7 @@ def render_explanation_page(data: dict) -> str:
 
 
 def render_reminder_page(data: dict) -> str:
+    accent = data.get("rang") or "#92702A"
     sarlavha = escape_html(data["sarlavha"])
     kimga = escape_html(data["kimga"])
     matn = escape_html(data["matn"]).replace("\n", "<br>")
@@ -1689,12 +1730,12 @@ def render_reminder_page(data: dict) -> str:
     position: relative;
   }}
   .pin {{ position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 28px; }}
-  .eyebrow {{ font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #92702A; margin: 6px 0 14px; }}
+  .eyebrow {{ font-family: 'Inter', sans-serif; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: {accent}; margin: 6px 0 14px; }}
   .title {{ font-family: 'Kalam', cursive; font-weight: 700; font-size: 26px; color: #4A3B14; margin: 0 0 18px; }}
   .addressee {{ font-size: 13px; color: #6B5A2E; margin: 0 0 18px; }}
   .body-text {{ font-family: 'Kalam', cursive; font-size: 17px; line-height: 1.6; color: #3A3324; margin: 0 0 26px; }}
   .muddat-box {{ background: rgba(255,255,255,0.5); border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; }}
-  .muddat-box .label {{ font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #92702A; }}
+  .muddat-box .label {{ font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: {accent}; }}
   .muddat-box p {{ margin: 4px 0 0; font-weight: 500; }}
   .kimdan {{ font-size: 13px; color: #6B5A2E; text-align: right; }}
 </style>
@@ -1717,6 +1758,7 @@ def render_reminder_page(data: dict) -> str:
 
 
 def render_guarantee_page(data: dict) -> str:
+    accent = data.get("rang") or "#C9A84C"
     mahsulot = escape_html(data["mahsulot"])
     mijoz = escape_html(data["mijoz"])
     muddat = escape_html(data["muddat"])
@@ -1749,7 +1791,7 @@ def render_guarantee_page(data: dict) -> str:
   .cert {{
     max-width: 460px; width: 100%;
     background: #16202B;
-    border: 1px solid #C9A84C;
+    border: 1px solid {accent};
     padding: 44px 36px;
     text-align: center;
     position: relative;
@@ -1761,14 +1803,14 @@ def render_guarantee_page(data: dict) -> str:
     pointer-events: none;
   }}
   .badge {{ font-size: 30px; margin-bottom: 10px; }}
-  .eyebrow {{ font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: #C9A84C; margin: 0 0 18px; }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: {accent}; margin: 0 0 18px; }}
   .title {{ font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 28px; margin: 0 0 6px; color: #F3ECD9; }}
   .mijoz {{ font-size: 13px; color: #9FA8B0; margin: 0 0 30px; }}
   .row {{ display: flex; justify-content: space-between; border-top: 1px solid rgba(201,168,76,0.25); padding: 14px 0; text-align: left; }}
-  .row .label {{ font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #C9A84C; }}
+  .row .label {{ font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: {accent}; }}
   .row .value {{ font-size: 14px; color: #E9E4D6; }}
   .shartlar-text {{ font-size: 13px; color: #B7BEC5; line-height: 1.6; text-align: left; margin-top: 6px; }}
-  .beruvchi {{ margin-top: 28px; font-family: 'Cormorant Garamond', serif; font-size: 17px; color: #C9A84C; }}
+  .beruvchi {{ margin-top: 28px; font-family: 'Cormorant Garamond', serif; font-size: 17px; color: {accent}; }}
 </style>
 </head>
 <body>
@@ -1790,6 +1832,7 @@ def render_guarantee_page(data: dict) -> str:
 
 
 def render_parent_guarantee_page(data: dict) -> str:
+    accent = data.get("rang") or "#2C4A73"
     oquvchi = escape_html(data["oquvchi"])
     sinf = escape_html(data["sinf"])
     maktab = escape_html(data["maktab"])
@@ -1826,9 +1869,9 @@ def render_parent_guarantee_page(data: dict) -> str:
     border-left: 3px solid #E8746B;
   }}
   .eyebrow {{ font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #4A6FA5; margin: 0 0 20px; }}
-  .title {{ font-family: 'Caveat', cursive; font-weight: 600; font-size: 32px; color: #2C4A73; margin: 0 0 24px; }}
+  .title {{ font-family: 'Caveat', cursive; font-weight: 600; font-size: 32px; color: {accent}; margin: 0 0 24px; }}
   .info {{ font-size: 14px; color: #2E3B4E; margin: 4px 0; }}
-  .info b {{ color: #2C4A73; }}
+  .info b {{ color: {accent}; }}
   .vada {{ font-family: 'Caveat', cursive; font-size: 20px; color: #2E3B4E; line-height: 1.5; margin: 20px 0; }}
   .footer {{ font-size: 13px; color: #4A6FA5; margin-top: 20px; text-align: right; }}
 </style>
@@ -1847,6 +1890,7 @@ def render_parent_guarantee_page(data: dict) -> str:
 
 
 def render_birthday_greeting_page(data: dict) -> str:
+    accent = data.get("rang") or "#B0459A"
     kimga = escape_html(data["kimga"])
     tabrik = escape_html(data["tabrik"]).replace("\n", "<br>")
     kimdan = escape_html(data["kimdan"])
@@ -1877,7 +1921,7 @@ def render_birthday_greeting_page(data: dict) -> str:
     box-shadow: 0 20px 50px rgba(0,0,0,0.12);
   }}
   .confetti {{ font-size: 30px; margin-bottom: 10px; letter-spacing: 6px; }}
-  .headline {{ font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 30px; color: #B0459A; margin: 0 0 6px; }}
+  .headline {{ font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 30px; color: {accent}; margin: 0 0 6px; }}
   .kimga {{ font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 22px; color: #5B4B8A; margin: 0 0 22px; }}
   .tabrik {{ font-size: 15px; line-height: 1.7; color: #4A3D5C; margin: 0 0 26px; }}
   .kimdan {{ font-size: 13px; color: #7A6A8F; }}
@@ -1896,6 +1940,7 @@ def render_birthday_greeting_page(data: dict) -> str:
 
 
 def render_cradle_page(data: dict) -> str:
+    accent = data.get("rang") or "#8E7CC3"
     chaqaloq = escape_html(data["chaqaloq"])
     otaona = escape_html(data["otaona"])
     sana = data["sana"]
@@ -1933,12 +1978,12 @@ def render_cradle_page(data: dict) -> str:
     box-shadow: 0 16px 40px rgba(100,100,160,0.14);
   }}
   .icon {{ font-size: 28px; margin-bottom: 12px; }}
-  .eyebrow {{ font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #8E7CC3; margin: 0 0 14px; }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: {accent}; margin: 0 0 14px; }}
   .name {{ font-family: 'Quicksand', sans-serif; font-weight: 600; font-size: 30px; color: #6E5A9E; margin: 0 0 6px; }}
   .parents {{ font-size: 14px; color: #7A7291; margin: 0 0 28px; }}
   .details {{ border-top: 1px dashed #D6C9E8; padding-top: 24px; }}
   .details p {{ margin: 6px 0; font-size: 15px; }}
-  .details .label {{ font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #8E7CC3; }}
+  .details .label {{ font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: {accent}; }}
   .map-link {{ display: inline-block; margin-top: 18px; font-size: 13px; color: #6E5A9E; text-decoration: underline; }}
 </style>
 </head>
@@ -1961,6 +2006,7 @@ def render_cradle_page(data: dict) -> str:
 
 
 def render_graduation_page(data: dict) -> str:
+    accent = data.get("rang") or "#D4AF37"
     ism = escape_html(data["ism"])
     muassasa = escape_html(data["muassasa"])
     sana = data["sana"]
@@ -1992,17 +2038,17 @@ def render_graduation_page(data: dict) -> str:
   }}
   .card {{
     max-width: 420px; width: 100%; text-align: center;
-    border: 1px solid #D4AF37;
+    border: 1px solid {accent};
     padding: 42px 32px;
   }}
   .icon {{ font-size: 30px; margin-bottom: 12px; }}
-  .eyebrow {{ font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #D4AF37; margin: 0 0 16px; }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: {accent}; margin: 0 0 16px; }}
   .name {{ font-family: 'Playfair Display', serif; font-weight: 700; font-size: 30px; color: #FFFFFF; margin: 0 0 8px; }}
   .muassasa {{ font-size: 14px; color: #A9B0C6; margin: 0 0 28px; }}
   .details {{ border-top: 1px solid rgba(212,175,55,0.3); padding-top: 24px; }}
   .details p {{ margin: 6px 0; font-size: 15px; }}
-  .details .label {{ font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #D4AF37; }}
-  .map-link {{ display: inline-block; margin-top: 18px; font-size: 13px; color: #D4AF37; text-decoration: underline; }}
+  .details .label {{ font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: {accent}; }}
+  .map-link {{ display: inline-block; margin-top: 18px; font-size: 13px; color: {accent}; text-decoration: underline; }}
 </style>
 </head>
 <body>
@@ -2024,6 +2070,7 @@ def render_graduation_page(data: dict) -> str:
 
 
 def render_official_event_page(data: dict) -> str:
+    accent = data.get("rang") or "#2455A4"
     tadbir = escape_html(data["tadbir"])
     tashkilotchi = escape_html(data["tashkilotchi"])
     sana = data["sana"]
@@ -2060,18 +2107,18 @@ def render_official_event_page(data: dict) -> str:
     max-width: 460px; width: 100%;
     background: #FFFFFF;
     border-radius: 4px;
-    border-left: 5px solid #2455A4;
+    border-left: 5px solid {accent};
     padding: 40px 36px;
     box-shadow: 0 6px 24px rgba(0,0,0,0.06);
   }}
-  .eyebrow {{ font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #2455A4; margin: 0 0 12px; font-weight: 600; }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: {accent}; margin: 0 0 12px; font-weight: 600; }}
   .title {{ font-size: 24px; font-weight: 700; margin: 0 0 8px; color: #1F2733; }}
   .tashkilotchi {{ font-size: 13px; color: #6B7686; margin: 0 0 28px; }}
   .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border-top: 1px solid #E4E7EC; padding-top: 22px; margin-bottom: 18px; }}
   .grid .label {{ font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #6B7686; margin: 0 0 4px; }}
   .grid .value {{ font-size: 14px; font-weight: 500; margin: 0; }}
   .tavsif {{ font-size: 14px; line-height: 1.6; color: #3A4353; margin: 10px 0 6px; }}
-  .map-link {{ display: inline-block; margin-top: 8px; font-size: 13px; color: #2455A4; text-decoration: underline; }}
+  .map-link {{ display: inline-block; margin-top: 8px; font-size: 13px; color: {accent}; text-decoration: underline; }}
 </style>
 </head>
 <body>
@@ -2093,6 +2140,7 @@ def render_official_event_page(data: dict) -> str:
 
 
 def render_love_letter_page(data: dict) -> str:
+    accent = data.get("rang") or "#B0475F"
     kimga = escape_html(data["kimga"])
     matn = escape_html(data["matn"]).replace("\n", "<br>")
     kimdan = escape_html(data["kimdan"])
@@ -2123,7 +2171,7 @@ def render_love_letter_page(data: dict) -> str:
     box-shadow: 0 18px 45px rgba(120,40,60,0.18);
   }}
   .heart {{ font-size: 26px; margin-bottom: 10px; }}
-  .eyebrow {{ font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #B0475F; margin: 0 0 16px; }}
+  .eyebrow {{ font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: {accent}; margin: 0 0 16px; }}
   .kimga {{ font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 600; font-size: 34px; color: #A03A54; margin: 0 0 26px; }}
   .matn {{ font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 19px; line-height: 1.7; color: #5C2A3A; margin: 0 0 30px; }}
   .kimdan {{ font-size: 14px; color: #8A5062; }}
