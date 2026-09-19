@@ -123,6 +123,21 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 @keyframes drift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-60px,-50px) scale(1.15); } }
 @keyframes drift3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-40px,40px) scale(0.9); } }
 @keyframes gridshift { 0% { background-position: 0 0; } 100% { background-position: 60px 60px; } }
+.bg-sticker { position: absolute; width: 34px; height: 34px; opacity: 0.5; will-change: transform; }
+.bg-sticker.s1 { color: var(--accent1); top: 14%; left: 10%; animation: floaty1 9s ease-in-out infinite; }
+.bg-sticker.s2 { color: var(--accent3); top: 68%; left: 14%; width: 28px; height: 28px; animation: floaty2 11s ease-in-out infinite; }
+.bg-sticker.s3 { color: var(--accent2); top: 20%; right: 12%; width: 26px; height: 26px; animation: floaty3 10s ease-in-out infinite; }
+.bg-sticker.s4 { color: var(--accent1); top: 74%; right: 16%; animation: floaty1 12s ease-in-out infinite reverse; }
+.bg-sticker.s5 { color: var(--accent3); top: 46%; left: 6%; width: 22px; height: 22px; animation: floaty2 8s ease-in-out infinite; }
+@keyframes floaty1 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(14px,-18px) rotate(8deg); } }
+@keyframes floaty2 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(-16px,14px) rotate(-10deg); } }
+@keyframes floaty3 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(12px,16px) rotate(12deg); } }
+@media (max-width: 700px) {
+  .bg-sticker { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bg-sticker { animation: none; }
+}
 @media (max-width: 600px) {
   .bg-orb { filter: blur(40px); opacity: 0.4; }
   .bg-orb.o1 { width: 260px; height: 260px; }
@@ -209,6 +224,11 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
   <div class="bg-orb o1"></div>
   <div class="bg-orb o2"></div>
   <div class="bg-orb o3"></div>
+  <svg class="bg-sticker s1" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M3 6l9 7 9-7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <svg class="bg-sticker s2" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-4.35-9.5-8.5C.8 9 2.5 5.5 6 5.5c2 0 3.5 1.2 4 2.6.5-1.4 2-2.6 4-2.6 3.5 0 5.2 3.5 3.5 7C19 16.65 12 21 12 21z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+  <svg class="bg-sticker s3" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.6 6.6L21 9.2l-5 4.5 1.5 6.8L12 17l-5.5 3.5L8 13.7 3 9.2l6.4-.6L12 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+  <svg class="bg-sticker s4" viewBox="0 0 24 24" fill="none"><path d="M20 12v9H4v-9M2 7h20v5H2V7zM12 7v14M12 7c-1.5-3-6-3-6 0s4.5 3 6 0zM12 7c1.5-3 6-3 6 0s-4.5 3-6 0z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+  <svg class="bg-sticker s5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2" stroke="currentColor" stroke-width="1.4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
 </div>
 
 <div class="seal" aria-hidden="true">
@@ -614,6 +634,27 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+}
+
+// --- Sichqoncha harakatiga qarab fon effekti (faqat kompyuterda) ---
+if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+  const orbs = document.querySelectorAll('.bg-orb');
+  let mx = 0, my = 0, cx = 0, cy = 0;
+  document.addEventListener('mousemove', (e) => {
+    mx = (e.clientX / window.innerWidth - 0.5) * 2;
+    my = (e.clientY / window.innerHeight - 0.5) * 2;
+  });
+  function parallaxTick() {
+    cx += (mx - cx) * 0.04;
+    cy += (my - cy) * 0.04;
+    orbs.forEach((orb, i) => {
+      const depth = (i + 1) * 14;
+      orb.style.marginLeft = (cx * depth) + 'px';
+      orb.style.marginTop = (cy * depth) + 'px';
+    });
+    requestAnimationFrame(parallaxTick);
+  }
+  parallaxTick();
 }
 
 document.getElementById('btn-start').addEventListener('click', () => showScreen('screen-explain'));
