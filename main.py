@@ -112,12 +112,12 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .seal svg { width: 100%; height: 100%; }
 .seal circle { fill: url(#seal-grad); }
 .seal path { fill: #fff; }
-.screen { display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 100px 24px 48px; position: relative; z-index: 1; }
-.bg-decor { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-.bg-orb { position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.5; will-change: transform; }
-.bg-orb.o1 { width: 420px; height: 420px; background: radial-gradient(circle, var(--accent1) 0%, transparent 70%); top: -140px; left: -120px; animation: drift1 20s ease-in-out infinite; }
-.bg-orb.o2 { width: 380px; height: 380px; background: radial-gradient(circle, var(--accent3) 0%, transparent 70%); bottom: -160px; right: -100px; animation: drift2 24s ease-in-out infinite; }
-.bg-orb.o3 { width: 320px; height: 320px; background: radial-gradient(circle, var(--accent2) 0%, transparent 70%); top: 42%; left: 58%; animation: drift3 28s ease-in-out infinite; }
+.screen { display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 100px 24px 48px; position: relative; z-index: 1; perspective: 1400px; }
+.bg-decor { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; perspective: 1200px; }
+.bg-orb { position: absolute; border-radius: 50%; filter: blur(26px); opacity: 0.72; will-change: transform; }
+.bg-orb.o1 { width: 380px; height: 380px; background: radial-gradient(circle at 32% 26%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 24%), radial-gradient(circle at 62% 68%, rgba(30,10,60,0.28) 0%, transparent 55%), radial-gradient(circle at 42% 40%, var(--accent1) 0%, transparent 72%); top: -120px; left: -110px; animation: drift1 20s ease-in-out infinite; }
+.bg-orb.o2 { width: 340px; height: 340px; background: radial-gradient(circle at 32% 26%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 24%), radial-gradient(circle at 62% 68%, rgba(70,10,40,0.25) 0%, transparent 55%), radial-gradient(circle at 42% 40%, var(--accent3) 0%, transparent 72%); bottom: -140px; right: -90px; animation: drift2 24s ease-in-out infinite; }
+.bg-orb.o3 { width: 280px; height: 280px; background: radial-gradient(circle at 32% 26%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 24%), radial-gradient(circle at 62% 68%, rgba(50,10,60,0.25) 0%, transparent 55%), radial-gradient(circle at 42% 40%, var(--accent2) 0%, transparent 72%); top: 40%; left: 58%; animation: drift3 28s ease-in-out infinite; }
 .bg-grid { position: absolute; inset: -10%; background-image: radial-gradient(rgba(109,93,246,0.10) 1px, transparent 1px); background-size: 30px 30px; mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 0%, transparent 75%); -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 0%, transparent 75%); animation: gridshift 60s linear infinite; }
 @keyframes drift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(50px,70px) scale(1.12); } }
 @keyframes drift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-60px,-50px) scale(1.15); } }
@@ -139,10 +139,10 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
   .bg-sticker { animation: none; }
 }
 @media (max-width: 600px) {
-  .bg-orb { filter: blur(40px); opacity: 0.4; }
-  .bg-orb.o1 { width: 260px; height: 260px; }
-  .bg-orb.o2 { width: 240px; height: 240px; }
-  .bg-orb.o3 { width: 200px; height: 200px; }
+  .bg-orb { filter: blur(18px); opacity: 0.55; }
+  .bg-orb.o1 { width: 220px; height: 220px; }
+  .bg-orb.o2 { width: 200px; height: 200px; }
+  .bg-orb.o3 { width: 170px; height: 170px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .bg-orb, .bg-grid { animation: none; }
@@ -167,6 +167,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .dot-i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-dim); opacity: 0.3; transition: opacity 0.2s ease, background 0.2s ease; }
 .dot-i.active { opacity: 1; background: var(--accent2); }
 .templates-wrap { max-width: 480px; width: 100%; text-align: center; }
+.intro-wrap, .explain-wrap, .form-wrap, .result-wrap, .tpl-card { transition: transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.35s ease, border-color 0.2s ease, background 0.2s ease; will-change: transform; }
 .section-title { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 28px; margin: 0 0 28px; color: var(--ink); }
 .template-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .tpl-card { font-family: 'Inter', sans-serif; background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--glass-border); border-radius: 16px; padding: 20px 16px; color: var(--ink); cursor: pointer; text-align: left; transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 18px rgba(109,93,246,0.08); }
@@ -655,6 +656,25 @@ if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
     requestAnimationFrame(parallaxTick);
   }
   parallaxTick();
+}
+
+// --- Kartalarning sichqoncha bilan 3D egilishi (tilt effekti) ---
+if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+  function attachTilt(el, strength) {
+    el.addEventListener('mousemove', (e) => {
+      const r = el.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width - 0.5;
+      const py = (e.clientY - r.top) / r.height - 0.5;
+      const rx = (-py * strength).toFixed(2);
+      const ry = (px * strength).toFixed(2);
+      el.style.transform = 'perspective(1000px) rotateX(' + rx + 'deg) rotateY(' + ry + 'deg) translateY(-3px) scale(1.01)';
+    });
+    el.addEventListener('mouseleave', () => {
+      el.style.transform = '';
+    });
+  }
+  document.querySelectorAll('.intro-wrap, .explain-wrap, .form-wrap, .result-wrap').forEach((el) => attachTilt(el, 6));
+  document.querySelectorAll('.tpl-card').forEach((el) => attachTilt(el, 10));
 }
 
 document.getElementById('btn-start').addEventListener('click', () => showScreen('screen-explain'));
