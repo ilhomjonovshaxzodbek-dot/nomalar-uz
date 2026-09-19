@@ -576,9 +576,43 @@ document.querySelectorAll('.app-form').forEach(form => {
   if (!submitBtn) return;
 
   if (!form.querySelector('[name="musiqa"]')) {
-    const musicLabel = document.createElement('label');
-    musicLabel.innerHTML = 'Fon musiqasi (ixtiyoriy, mp3 havolasi)<input type="url" name="musiqa" placeholder="https://.../musiqa.mp3">';
-    form.insertBefore(musicLabel, submitBtn);
+    const musicWrap = document.createElement('div');
+    musicWrap.className = 'photo-field';
+    musicWrap.innerHTML =
+      '<span class="map-field-label">Fon musiqasi (ixtiyoriy)</span>' +
+      '<input type="hidden" name="musiqa">' +
+      '<input type="file" class="music-file-input" accept="audio/*">' +
+      '<input type="url" class="music-url-input" placeholder="yoki musiqa havolasi (URL)">' +
+      '<p class="photo-preview-note"></p>';
+    form.insertBefore(musicWrap, submitBtn);
+
+    const musicHidden = musicWrap.querySelector('[name="musiqa"]');
+    const musicFileInput = musicWrap.querySelector('.music-file-input');
+    const musicUrlInput = musicWrap.querySelector('.music-url-input');
+    const musicNote = musicWrap.querySelector('.photo-preview-note');
+
+    musicFileInput.addEventListener('change', () => {
+      const file = musicFileInput.files && musicFileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        musicHidden.value = reader.result;
+        musicUrlInput.value = '';
+        musicNote.textContent = "Musiqa tanlandi: " + file.name;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    musicUrlInput.addEventListener('input', () => {
+      if (musicUrlInput.value.trim()) {
+        musicHidden.value = musicUrlInput.value.trim();
+        musicFileInput.value = '';
+        musicNote.textContent = 'Havola orqali musiqa qo\u2019shiladi.';
+      } else if (!musicFileInput.files.length) {
+        musicHidden.value = '';
+        musicNote.textContent = '';
+      }
+    });
   }
 
   if (!form.querySelector('[name="rasm"]')) {
