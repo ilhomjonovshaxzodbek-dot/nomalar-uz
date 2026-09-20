@@ -55,6 +55,12 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -123,21 +129,6 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 @keyframes drift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-60px,-50px) scale(1.15); } }
 @keyframes drift3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-40px,40px) scale(0.9); } }
 @keyframes gridshift { 0% { background-position: 0 0; } 100% { background-position: 60px 60px; } }
-.bg-sticker { position: absolute; width: 34px; height: 34px; opacity: 0.5; will-change: transform; }
-.bg-sticker.s1 { color: var(--accent1); top: 14%; left: 10%; animation: floaty1 9s ease-in-out infinite; }
-.bg-sticker.s2 { color: var(--accent3); top: 68%; left: 14%; width: 28px; height: 28px; animation: floaty2 11s ease-in-out infinite; }
-.bg-sticker.s3 { color: var(--accent2); top: 20%; right: 12%; width: 26px; height: 26px; animation: floaty3 10s ease-in-out infinite; }
-.bg-sticker.s4 { color: var(--accent1); top: 74%; right: 16%; animation: floaty1 12s ease-in-out infinite reverse; }
-.bg-sticker.s5 { color: var(--accent3); top: 46%; left: 6%; width: 22px; height: 22px; animation: floaty2 8s ease-in-out infinite; }
-@keyframes floaty1 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(14px,-18px) rotate(8deg); } }
-@keyframes floaty2 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(-16px,14px) rotate(-10deg); } }
-@keyframes floaty3 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(12px,16px) rotate(12deg); } }
-@media (max-width: 700px) {
-  .bg-sticker { display: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .bg-sticker { animation: none; }
-}
 @media (max-width: 600px) {
   .bg-orb { filter: blur(18px); opacity: 0.55; }
   .bg-orb.o1 { width: 220px; height: 220px; }
@@ -225,11 +216,6 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
   <div class="bg-orb o1"></div>
   <div class="bg-orb o2"></div>
   <div class="bg-orb o3"></div>
-  <svg class="bg-sticker s1" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M3 6l9 7 9-7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  <svg class="bg-sticker s2" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-4.35-9.5-8.5C.8 9 2.5 5.5 6 5.5c2 0 3.5 1.2 4 2.6.5-1.4 2-2.6 4-2.6 3.5 0 5.2 3.5 3.5 7C19 16.65 12 21 12 21z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
-  <svg class="bg-sticker s3" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.6 6.6L21 9.2l-5 4.5 1.5 6.8L12 17l-5.5 3.5L8 13.7 3 9.2l6.4-.6L12 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-  <svg class="bg-sticker s4" viewBox="0 0 24 24" fill="none"><path d="M20 12v9H4v-9M2 7h20v5H2V7zM12 7v14M12 7c-1.5-3-6-3-6 0s4.5 3 6 0zM12 7c1.5-3 6-3 6 0s-4.5 3-6 0z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-  <svg class="bg-sticker s5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2" stroke="currentColor" stroke-width="1.4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
 </div>
 
 <div class="seal" aria-hidden="true">
@@ -953,9 +939,263 @@ document.getElementById('btn-copy').addEventListener('click', () => {
 </html>"""
 
 
+# ============================================================
+#  SUZUVCHI RASMLAR — BUTUN SAYT BO'YLAB UMUMIY SKRIPT
+# ============================================================
+
+DECOR_IMAGES_SCRIPT = r"""
+<style>
+  .pg-decor-imgs { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .pg-decor-img { position: absolute; width: 56px; height: 56px; object-fit: contain; opacity: 0.6; border-radius: 10px; filter: drop-shadow(0 8px 18px rgba(20,10,40,0.18)); will-change: transform; }
+  .pg-df1 { animation: pgFloat1 9s ease-in-out infinite; }
+  .pg-df2 { animation: pgFloat2 11s ease-in-out infinite; }
+  .pg-df3 { animation: pgFloat3 10s ease-in-out infinite; }
+  .pg-df4 { animation: pgFloat2 12.5s ease-in-out infinite reverse; }
+  @keyframes pgFloat1 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(16px,-20px) rotate(8deg); } }
+  @keyframes pgFloat2 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(-18px,16px) rotate(-10deg); } }
+  @keyframes pgFloat3 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(14px,18px) rotate(12deg); } }
+  @media (max-width: 700px) { .pg-decor-img { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .pg-decor-img { animation: none; } }
+</style>
+<script>
+(function () {
+  fetch('/api/dekor-rasmlar').then(function (r) { return r.json(); }).then(function (data) {
+    var imgs = (data && data.images) || [];
+    if (!imgs.length) return;
+
+    var card = document.body.querySelector(':scope > div, :scope > section, :scope > article');
+    if (card) {
+      var pos = window.getComputedStyle(card).position;
+      if (pos === 'static') { card.style.position = 'relative'; }
+      var z = window.getComputedStyle(card).zIndex;
+      if (z === 'auto' || !z) { card.style.zIndex = '2'; }
+    }
+
+    var positions = [
+      { top: '12%', left: '8%' },
+      { top: '70%', left: '10%' },
+      { top: '16%', right: '9%' },
+      { top: '72%', right: '12%' }
+    ];
+    var animClasses = ['pg-df1', 'pg-df2', 'pg-df3', 'pg-df4'];
+
+    var container = document.createElement('div');
+    container.className = 'pg-decor-imgs';
+    container.setAttribute('aria-hidden', 'true');
+
+    imgs.slice(0, 4).forEach(function (src, i) {
+      var im = document.createElement('img');
+      im.src = src;
+      im.alt = '';
+      im.className = 'pg-decor-img ' + animClasses[i % animClasses.length];
+      var p = positions[i % positions.length];
+      Object.keys(p).forEach(function (k) { im.style[k] = p[k]; });
+      container.appendChild(im);
+    });
+
+    document.body.insertBefore(container, document.body.firstChild);
+  }).catch(function () {});
+})();
+</script>
+"""
+
+HOME_PAGE = HOME_PAGE.replace("</body>", DECOR_IMAGES_SCRIPT + "</body>", 1)
+
+
+def inject_floating_decor(html: str) -> str:
+    if "</body>" in html:
+        return html.replace("</body>", DECOR_IMAGES_SCRIPT + "</body>", 1)
+    return html + DECOR_IMAGES_SCRIPT
+
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     return HOME_PAGE
+
+
+# ============================================================
+#  SUZUVCHI RASMLAR (DEKOR) — BOSHQARUV SAHIFASI VA API
+# ============================================================
+
+DEKOR_SLOTS = ["decor_1", "decor_2", "decor_3", "decor_4"]
+
+DEKOR_ADMIN_PAGE = r"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nomalar.uz — Dekor rasmlar</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: linear-gradient(160deg, #EEF2FF 0%, #F5ECFF 50%, #FFF0F5 100%); color: #201F33; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; padding: 48px 20px; }
+  .wrap { max-width: 480px; width: 100%; background: rgba(255,255,255,0.75); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.75); border-radius: 28px; padding: 40px 34px; box-shadow: 0 24px 70px rgba(109,93,246,0.2); }
+  h1 { font-family: 'Sora', sans-serif; font-size: 24px; margin: 0 0 6px; }
+  p.sub { color: #6B7080; font-size: 13.5px; margin: 0 0 28px; }
+  .slot { margin-bottom: 22px; border-top: 1px solid rgba(109,93,246,0.14); padding-top: 18px; }
+  .slot label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #6B7080; }
+  .slot input[type="file"] { font-size: 12.5px; margin-bottom: 8px; }
+  .slot input[type="url"] { width: 100%; font-size: 13px; background: rgba(255,255,255,0.7); border: 1px solid rgba(109,93,246,0.18); border-radius: 10px; padding: 9px 12px; color: #201F33; }
+  .slot img.preview { max-width: 70px; max-height: 70px; display: block; margin-top: 8px; border-radius: 8px; border: 1px solid #eee; }
+  .slot .clear-btn { font-size: 12px; color: #E1477A; background: none; border: none; cursor: pointer; margin-top: 6px; padding: 0; }
+  button.save { width: 100%; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; background: linear-gradient(135deg, #6D5DF6 0%, #C86DD7 55%, #FF8AAE 100%); color: #fff; border: none; border-radius: 999px; padding: 14px; cursor: pointer; margin-top: 8px; }
+  .status { text-align: center; font-size: 13px; margin-top: 14px; min-height: 16px; color: #4A9B6E; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Suzuvchi rasmlar</h1>
+  <p class="sub">Bu yerga tashlagan rasmlar (maksimal 4 ta) bosh sahifada va barcha noma sahifalarida suzib yuradi. Bo'sh qoldirilgan joy o'chiriladi.</p>
+  <form id="dekor-form">
+    <div class="slot" data-slot="1">
+      <label>1-rasm</label>
+      <input type="file" class="d-file" accept="image/*">
+      <input type="url" class="d-url" placeholder="yoki rasm havolasi (URL)">
+      <img class="preview" style="display:none;">
+      <button type="button" class="clear-btn">Tozalash</button>
+    </div>
+    <div class="slot" data-slot="2">
+      <label>2-rasm</label>
+      <input type="file" class="d-file" accept="image/*">
+      <input type="url" class="d-url" placeholder="yoki rasm havolasi (URL)">
+      <img class="preview" style="display:none;">
+      <button type="button" class="clear-btn">Tozalash</button>
+    </div>
+    <div class="slot" data-slot="3">
+      <label>3-rasm</label>
+      <input type="file" class="d-file" accept="image/*">
+      <input type="url" class="d-url" placeholder="yoki rasm havolasi (URL)">
+      <img class="preview" style="display:none;">
+      <button type="button" class="clear-btn">Tozalash</button>
+    </div>
+    <div class="slot" data-slot="4">
+      <label>4-rasm</label>
+      <input type="file" class="d-file" accept="image/*">
+      <input type="url" class="d-url" placeholder="yoki rasm havolasi (URL)">
+      <img class="preview" style="display:none;">
+      <button type="button" class="clear-btn">Tozalash</button>
+    </div>
+    <button type="submit" class="save">Saqlash</button>
+    <p class="status" id="status"></p>
+  </form>
+</div>
+<script>
+const slots = document.querySelectorAll('.slot');
+const values = {1: '', 2: '', 3: '', 4: ''};
+
+fetch('/api/dekor-rasmlar').then(r => r.json()).then(data => {
+  const imgs = (data && data.images) || [];
+  slots.forEach((slot, i) => {
+    if (imgs[i]) {
+      values[i + 1] = imgs[i];
+      const prev = slot.querySelector('.preview');
+      prev.src = imgs[i];
+      prev.style.display = 'block';
+    }
+  });
+});
+
+slots.forEach((slot) => {
+  const n = slot.dataset.slot;
+  const fileInput = slot.querySelector('.d-file');
+  const urlInput = slot.querySelector('.d-url');
+  const prev = slot.querySelector('.preview');
+  const clearBtn = slot.querySelector('.clear-btn');
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      values[n] = reader.result;
+      urlInput.value = '';
+      prev.src = reader.result;
+      prev.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  urlInput.addEventListener('input', () => {
+    if (urlInput.value.trim()) {
+      values[n] = urlInput.value.trim();
+      fileInput.value = '';
+      prev.src = values[n];
+      prev.style.display = 'block';
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    values[n] = '';
+    fileInput.value = '';
+    urlInput.value = '';
+    prev.style.display = 'none';
+  });
+});
+
+document.getElementById('dekor-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const statusEl = document.getElementById('status');
+  statusEl.textContent = 'Saqlanmoqda...';
+  try {
+    const res = await fetch('/api/admin/dekor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slot1: values[1], slot2: values[2], slot3: values[3], slot4: values[4] }),
+    });
+    if (res.ok) {
+      statusEl.textContent = 'Saqlandi ✓';
+    } else {
+      statusEl.textContent = 'Xatolik yuz berdi.';
+    }
+  } catch (err) {
+    statusEl.textContent = 'Internet aloqasida muammo.';
+  }
+});
+</script>
+</body>
+</html>"""
+
+
+@app.get("/admin/dekor", response_class=HTMLResponse)
+def dekor_admin_page():
+    return DEKOR_ADMIN_PAGE
+
+
+class DekorForm(BaseModel):
+    slot1: str = ""
+    slot2: str = ""
+    slot3: str = ""
+    slot4: str = ""
+
+
+@app.post("/api/admin/dekor")
+def save_dekor(form: DekorForm):
+    values = [form.slot1, form.slot2, form.slot3, form.slot4]
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    for key, value in zip(DEKOR_SLOTS, values):
+        cur.execute(
+            "INSERT INTO settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.get("/api/dekor-rasmlar")
+def get_dekor_images():
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        f"SELECT key, value FROM settings WHERE key IN ({','.join('?' * len(DEKOR_SLOTS))})",
+        DEKOR_SLOTS,
+    )
+    rows = dict(cur.fetchall())
+    conn.close()
+    images = [rows[k] for k in DEKOR_SLOTS if rows.get(k)]
+    return {"images": images}
 
 
 # ============================================================
@@ -1502,6 +1742,7 @@ def view_page(slug: str):
     html = inject_photo(html, data)
     html = inject_music_player(html, data)
     html = inject_tilt_effect(html)
+    html = inject_floating_decor(html)
     return inject_action_bar(html)
 
 
