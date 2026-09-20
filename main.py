@@ -144,6 +144,15 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .brand-title .dot { -webkit-text-fill-color: var(--accent3); }
 @keyframes shimmer { 0% { background-position: 0% 0; } 50% { background-position: 100% 0; } 100% { background-position: 0% 0; } }
 .intro-sub { color: var(--ink-dim); font-size: 15px; margin: 0 0 32px; }
+.intro-actions { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.btn-dekor-icon { width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--glass-border); background: var(--glass); color: var(--ink-dim); display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: color 0.2s ease, border-color 0.2s ease, transform 0.15s ease; flex-shrink: 0; }
+.btn-dekor-icon svg { width: 18px; height: 18px; }
+.btn-dekor-icon:hover { color: var(--accent1); border-color: var(--accent1); transform: translateY(-2px); }
+.dekor-slots { display: flex; flex-direction: column; gap: 14px; max-height: 50vh; overflow-y: auto; padding-right: 4px; }
+.dekor-slots .photo-field { border-top: 1px solid rgba(109,93,246,0.12); padding-top: 12px; }
+.dekor-slots .photo-field:first-child { border-top: none; padding-top: 0; }
+.dk-preview { display: none; max-width: 60px; max-height: 60px; border-radius: 8px; margin-top: 8px; object-fit: cover; }
+.dekor-status { font-size: 12px; color: var(--accent1); text-align: center; margin-top: 10px; min-height: 14px; }
 .btn-primary { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.01em; background: var(--accent-grad); color: #fff; border: none; border-radius: 999px; padding: 14px 38px; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.3s ease; box-shadow: 0 8px 24px rgba(109,93,246,0.35); }
 .btn-primary:hover { box-shadow: 0 10px 32px rgba(109,93,246,0.48); transform: translateY(-2px); }
 .btn-primary:active { transform: scale(0.98); }
@@ -237,7 +246,12 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
     <p class="eyebrow">raqamli noma</p>
     <h1 class="brand-title">Nomalar<span class="dot">.</span>uz</h1>
     <p class="intro-sub">Muhim daqiqalaringiz uchun — bir necha daqiqada.</p>
-    <button class="btn-primary" id="btn-start">Boshlash</button>
+    <div class="intro-actions">
+      <button class="btn-primary" id="btn-start">Boshlash</button>
+      <button type="button" class="btn-dekor-icon" id="btn-dekor-open" title="Dekor rasmlar" aria-label="Dekor rasmlar">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="10" r="1.5" fill="currentColor"/><path d="M21 16l-5.5-5.5a1 1 0 0 0-1.4 0L7 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
   </div>
 </section>
 
@@ -616,6 +630,43 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
   </div>
 </div>
 
+<div id="dekor-modal" class="map-modal">
+  <div class="map-modal-inner" style="max-width:420px;">
+    <p class="map-modal-hint">Sayt bo'ylab suzib yuradigan rasmlar (4 tagacha, bo'sh qoldirilgan joy o'chadi)</p>
+    <div class="dekor-slots">
+      <div class="photo-field" data-slot="1">
+        <span class="map-field-label">1-rasm</span>
+        <input type="file" class="dk-file" accept="image/*">
+        <input type="url" class="dk-url" placeholder="yoki rasm havolasi">
+        <img class="dk-preview" alt="">
+      </div>
+      <div class="photo-field" data-slot="2">
+        <span class="map-field-label">2-rasm</span>
+        <input type="file" class="dk-file" accept="image/*">
+        <input type="url" class="dk-url" placeholder="yoki rasm havolasi">
+        <img class="dk-preview" alt="">
+      </div>
+      <div class="photo-field" data-slot="3">
+        <span class="map-field-label">3-rasm</span>
+        <input type="file" class="dk-file" accept="image/*">
+        <input type="url" class="dk-url" placeholder="yoki rasm havolasi">
+        <img class="dk-preview" alt="">
+      </div>
+      <div class="photo-field" data-slot="4">
+        <span class="map-field-label">4-rasm</span>
+        <input type="file" class="dk-file" accept="image/*">
+        <input type="url" class="dk-url" placeholder="yoki rasm havolasi">
+        <img class="dk-preview" alt="">
+      </div>
+    </div>
+    <div class="map-modal-actions">
+      <button type="button" id="dekor-cancel" class="btn-primary" style="background:transparent;border:1px solid var(--ink);color:var(--ink);box-shadow:none;">Yopish</button>
+      <button type="button" id="dekor-save" class="btn-primary">Saqlash</button>
+    </div>
+    <p class="dekor-status" id="dekor-status"></p>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 function showScreen(id) {
@@ -664,6 +715,90 @@ if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
 }
 
 document.getElementById('btn-start').addEventListener('click', () => showScreen('screen-explain'));
+
+// --- Dekor rasmlar oynachasi (bosh sahifada, Boshlash tugmasi yonida) ---
+const dekorModal = document.getElementById('dekor-modal');
+const dekorValues = { 1: '', 2: '', 3: '', 4: '' };
+
+function loadDekorPreviews() {
+  fetch('/api/dekor-rasmlar').then((r) => r.json()).then((data) => {
+    const imgs = (data && data.images) || [];
+    document.querySelectorAll('.dekor-slots .photo-field').forEach((slot, i) => {
+      const prev = slot.querySelector('.dk-preview');
+      if (imgs[i]) {
+        dekorValues[i + 1] = imgs[i];
+        prev.src = imgs[i];
+        prev.style.display = 'block';
+      } else {
+        dekorValues[i + 1] = '';
+        prev.removeAttribute('src');
+        prev.style.display = 'none';
+      }
+    });
+  }).catch(() => {});
+}
+
+document.getElementById('btn-dekor-open').addEventListener('click', () => {
+  loadDekorPreviews();
+  document.getElementById('dekor-status').textContent = '';
+  dekorModal.classList.add('active');
+});
+
+document.getElementById('dekor-cancel').addEventListener('click', () => {
+  dekorModal.classList.remove('active');
+});
+
+document.querySelectorAll('.dekor-slots .photo-field').forEach((slot) => {
+  const n = slot.dataset.slot;
+  const fileInput = slot.querySelector('.dk-file');
+  const urlInput = slot.querySelector('.dk-url');
+  const prev = slot.querySelector('.dk-preview');
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      dekorValues[n] = reader.result;
+      urlInput.value = '';
+      prev.src = reader.result;
+      prev.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  urlInput.addEventListener('input', () => {
+    if (urlInput.value.trim()) {
+      dekorValues[n] = urlInput.value.trim();
+      fileInput.value = '';
+      prev.src = dekorValues[n];
+      prev.style.display = 'block';
+    } else if (!fileInput.files.length) {
+      dekorValues[n] = '';
+      prev.style.display = 'none';
+    }
+  });
+});
+
+document.getElementById('dekor-save').addEventListener('click', async () => {
+  const statusEl = document.getElementById('dekor-status');
+  statusEl.textContent = 'Saqlanmoqda...';
+  try {
+    const res = await fetch('/api/admin/dekor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        slot1: dekorValues[1],
+        slot2: dekorValues[2],
+        slot3: dekorValues[3],
+        slot4: dekorValues[4],
+      }),
+    });
+    statusEl.textContent = res.ok ? 'Saqlandi ✓' : 'Xatolik yuz berdi.';
+  } catch (err) {
+    statusEl.textContent = 'Internet aloqasida muammo.';
+  }
+});
 
 // --- Orqaga tugmalari ---
 document.querySelectorAll('.btn-back[data-back]').forEach(btn => {
