@@ -946,15 +946,16 @@ document.getElementById('btn-copy').addEventListener('click', () => {
 DECOR_IMAGES_SCRIPT = r"""
 <style>
   .pg-decor-imgs { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-  .pg-decor-img { position: absolute; width: 56px; height: 56px; object-fit: contain; opacity: 0.6; border-radius: 10px; filter: drop-shadow(0 8px 18px rgba(20,10,40,0.18)); will-change: transform; }
-  .pg-df1 { animation: pgFloat1 9s ease-in-out infinite; }
-  .pg-df2 { animation: pgFloat2 11s ease-in-out infinite; }
-  .pg-df3 { animation: pgFloat3 10s ease-in-out infinite; }
-  .pg-df4 { animation: pgFloat2 12.5s ease-in-out infinite reverse; }
-  @keyframes pgFloat1 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(16px,-20px) rotate(8deg); } }
-  @keyframes pgFloat2 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(-18px,16px) rotate(-10deg); } }
-  @keyframes pgFloat3 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(14px,18px) rotate(12deg); } }
-  @media (max-width: 700px) { .pg-decor-img { display: none; } }
+  .pg-decor-img { position: absolute; width: 84px; height: 84px; object-fit: contain; opacity: 0.94; border-radius: 14px; filter: drop-shadow(0 10px 22px rgba(20,10,40,0.22)); will-change: transform, left, top; pointer-events: auto; cursor: grab; touch-action: none; }
+  .pg-decor-img.pg-dragging { animation: none !important; cursor: grabbing; opacity: 1; filter: drop-shadow(0 16px 30px rgba(20,10,40,0.3)); }
+  .pg-df1 { animation: pgFloat1 8s ease-in-out infinite; }
+  .pg-df2 { animation: pgFloat2 9.5s ease-in-out infinite; }
+  .pg-df3 { animation: pgFloat3 8.6s ease-in-out infinite; }
+  .pg-df4 { animation: pgFloat2 10.5s ease-in-out infinite reverse; }
+  @keyframes pgFloat1 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(34px,-42px) rotate(10deg); } }
+  @keyframes pgFloat2 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(-38px,34px) rotate(-12deg); } }
+  @keyframes pgFloat3 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(30px,38px) rotate(14deg); } }
+  @media (max-width: 700px) { .pg-decor-img { width: 56px; height: 56px; } }
   @media (prefers-reduced-motion: reduce) { .pg-decor-img { animation: none; } }
 </style>
 <script>
@@ -973,9 +974,9 @@ DECOR_IMAGES_SCRIPT = r"""
 
     var positions = [
       { top: '12%', left: '8%' },
-      { top: '70%', left: '10%' },
+      { top: '68%', left: '10%' },
       { top: '16%', right: '9%' },
-      { top: '72%', right: '12%' }
+      { top: '70%', right: '12%' }
     ];
     var animClasses = ['pg-df1', 'pg-df2', 'pg-df3', 'pg-df4'];
 
@@ -991,6 +992,40 @@ DECOR_IMAGES_SCRIPT = r"""
       var p = positions[i % positions.length];
       Object.keys(p).forEach(function (k) { im.style[k] = p[k]; });
       container.appendChild(im);
+
+      var dragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+
+      im.addEventListener('pointerdown', function (e) {
+        dragging = true;
+        try { im.setPointerCapture(e.pointerId); } catch (err) {}
+        im.classList.add('pg-dragging');
+        var rect = im.getBoundingClientRect();
+        im.style.left = rect.left + 'px';
+        im.style.top = rect.top + 'px';
+        im.style.right = 'auto';
+        im.style.bottom = 'auto';
+        origLeft = rect.left;
+        origTop = rect.top;
+        startX = e.clientX;
+        startY = e.clientY;
+        e.preventDefault();
+      });
+
+      im.addEventListener('pointermove', function (e) {
+        if (!dragging) return;
+        var dx = e.clientX - startX;
+        var dy = e.clientY - startY;
+        im.style.left = (origLeft + dx) + 'px';
+        im.style.top = (origTop + dy) + 'px';
+      });
+
+      function endDrag() {
+        if (!dragging) return;
+        dragging = false;
+        im.classList.remove('pg-dragging');
+      }
+      im.addEventListener('pointerup', endDrag);
+      im.addEventListener('pointercancel', endDrag);
     });
 
     document.body.insertBefore(container, document.body.firstChild);
