@@ -105,11 +105,11 @@ HOME_PAGE = r"""<!DOCTYPE html>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
 :root {
-  --bg1: #EEF2FF; --bg2: #F5ECFF; --bg3: #FFF0F5;
-  --ink: #201F33; --ink-dim: #6B7080;
-  --glass: rgba(255,255,255,0.6); --glass-strong: rgba(255,255,255,0.78); --glass-border: rgba(255,255,255,0.75);
-  --accent1: #6D5DF6; --accent2: #C86DD7; --accent3: #FF8AAE;
-  --accent-grad: linear-gradient(135deg, var(--accent1) 0%, var(--accent2) 55%, var(--accent3) 100%);
+  --bg1: #EAF2FF; --bg2: #F3F8FF; --bg3: #FFFFFF;
+  --ink: #16233B; --ink-dim: #64748B;
+  --glass: rgba(255,255,255,0.72); --glass-strong: rgba(255,255,255,0.9); --glass-border: rgba(219,231,249,0.9);
+  --accent1: #2F6FED; --accent2: #4A8CFF; --accent3: #7DB2FF;
+  --accent-grad: linear-gradient(135deg, var(--accent1) 0%, var(--accent2) 100%);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 50%, var(--bg3) 100%); color: var(--ink); font-family: 'Inter', sans-serif; overflow-x: hidden; min-height: 100vh; }
@@ -139,20 +139,41 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
   .bg-orb, .bg-grid { animation: none; }
 }
 .screen.active { display: flex; }
+#screen-intro.screen.active { display: block; padding-top: 0; }
 .intro-wrap { text-align: center; width: min(92vw, 440px); animation: rise 0.8s ease both; background: var(--glass); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--glass-border); border-radius: 32px; padding: 52px 40px; box-shadow: 0 24px 70px rgba(109,93,246,0.22), 0 2px 8px rgba(109,93,246,0.08), inset 0 1px 0 rgba(255,255,255,0.7); }
 .brand-title { font-family: 'Sora', sans-serif; font-weight: 800; font-size: 48px; margin: 0 0 12px; background: var(--accent-grad); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 5s ease-in-out infinite; letter-spacing: -0.01em; }
 .brand-title .dot { -webkit-text-fill-color: var(--accent3); }
 @keyframes shimmer { 0% { background-position: 0% 0; } 50% { background-position: 100% 0; } 100% { background-position: 0% 0; } }
 .intro-sub { color: var(--ink-dim); font-size: 15px; margin: 0 0 32px; }
 .intro-actions { display: flex; align-items: center; justify-content: center; gap: 10px; }
-.btn-dekor-icon { width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--glass-border); background: var(--glass); color: var(--ink-dim); display: flex; align-items: center; justify-content: center; cursor: pointer; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: color 0.2s ease, border-color 0.2s ease, transform 0.15s ease; flex-shrink: 0; }
-.btn-dekor-icon svg { width: 18px; height: 18px; }
-.btn-dekor-icon:hover { color: var(--accent1); border-color: var(--accent1); transform: translateY(-2px); }
-.dekor-slots { display: flex; flex-direction: column; gap: 14px; max-height: 50vh; overflow-y: auto; padding-right: 4px; }
-.dekor-slots .photo-field { border-top: 1px solid rgba(109,93,246,0.12); padding-top: 12px; }
-.dekor-slots .photo-field:first-child { border-top: none; padding-top: 0; }
-.dk-preview { display: none; max-width: 60px; max-height: 60px; border-radius: 8px; margin-top: 8px; object-fit: cover; }
-.dekor-status { font-size: 12px; color: var(--accent1); text-align: center; margin-top: 10px; min-height: 14px; }
+.navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: 16px 5vw; background: rgba(255,255,255,0.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--glass-border); }
+.nav-logo { font-family: 'Sora', sans-serif; font-weight: 800; font-size: 19px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+.nav-logo .dot { color: var(--accent1); }
+.nav-links { display: flex; gap: 28px; list-style: none; margin: 0; padding: 0; }
+.nav-links a { color: var(--ink-dim); text-decoration: none; font-size: 14px; font-weight: 500; }
+.nav-links a:hover { color: var(--accent1); }
+.nav-right { display: flex; align-items: center; gap: 14px; }
+.btn-login { font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 600; background: var(--accent-grad); color: #fff; border: none; border-radius: 999px; padding: 10px 22px; cursor: pointer; }
+@media (max-width: 780px) { .nav-links { display: none; } }
+.landing-wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding-top: 30px; }
+.hero { text-align: center; padding: 30px 20px 10px; }
+.hero h1 { font-family: 'Sora', sans-serif; font-weight: 800; font-size: clamp(28px,4.5vw,46px); line-height: 1.15; color: var(--ink); margin: 0 0 16px; }
+.hero h1 span { background: var(--accent-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero p.hero-sub { color: var(--ink-dim); font-size: 15.5px; max-width: 520px; margin: 0 auto 28px; line-height: 1.6; }
+.hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn-outline { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; background: #fff; color: var(--accent1); border: 1px solid var(--glass-border); border-radius: 999px; padding: 14px 30px; cursor: pointer; }
+.landing-section { padding: 54px 20px 10px; text-align: center; }
+.landing-section .section-title { text-align: center; }
+.landing-section .section-sub { color: var(--ink-dim); font-size: 14px; margin: -16px 0 30px; }
+.mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 12px; max-width: 900px; margin: 0 auto; }
+.mini-tpl { background: #fff; border: 1px solid var(--glass-border); border-radius: 16px; padding: 18px 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(47,111,237,0.06); }
+.mini-tpl .ic { font-size: 22px; }
+.mini-tpl span.mini-name { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.benefit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 16px; max-width: 900px; margin: 0 auto; }
+.benefit-card { background: #fff; border: 1px solid var(--glass-border); border-radius: 18px; padding: 26px 20px; text-align: left; box-shadow: 0 4px 16px rgba(47,111,237,0.06); }
+.benefit-card .ic { font-size: 22px; margin-bottom: 10px; }
+.benefit-card h3 { font-family: 'Sora', sans-serif; font-size: 15px; margin: 0 0 6px; color: var(--ink); }
+.benefit-card p { font-size: 13px; color: var(--ink-dim); margin: 0; line-height: 1.5; }
 .btn-primary { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.01em; background: var(--accent-grad); color: #fff; border: none; border-radius: 999px; padding: 14px 38px; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.3s ease; box-shadow: 0 8px 24px rgba(109,93,246,0.35); }
 .btn-primary:hover { box-shadow: 0 10px 32px rgba(109,93,246,0.48); transform: translateY(-2px); }
 .btn-primary:active { transform: scale(0.98); }
@@ -242,16 +263,66 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 </div>
 
 <section id="screen-intro" class="screen active">
-  <div class="intro-wrap">
-    <p class="eyebrow">raqamli noma</p>
-    <h1 class="brand-title">Nomalar<span class="dot">.</span>uz</h1>
-    <p class="intro-sub">Muhim daqiqalaringiz uchun — bir necha daqiqada.</p>
-    <div class="intro-actions">
-      <button class="btn-primary" id="btn-start">Boshlash</button>
-      <button type="button" class="btn-dekor-icon" id="btn-dekor-open" title="Dekor rasmlar" aria-label="Dekor rasmlar">
-        <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><circle cx="8.5" cy="10" r="1.5" fill="currentColor"/><path d="M21 16l-5.5-5.5a1 1 0 0 0-1.4 0L7 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
+  <nav class="navbar">
+    <div class="nav-logo">Nomalar<span class="dot">.</span>uz</div>
+    <ul class="nav-links">
+      <li><a href="#screen-intro" onclick="return false;">Bosh sahifa</a></li>
+      <li><a href="#landing-turlari">Noma turlari</a></li>
+      <li><a href="#landing-qadam">Qanday ishlaydi?</a></li>
+      <li><a href="#landing-afzallik">Afzalliklar</a></li>
+    </ul>
+    <div class="nav-right">
+      <button class="btn-login" id="btn-nav-start">Boshlash</button>
     </div>
+  </nav>
+
+  <div class="landing-wrap">
+    <section class="hero">
+      <p class="eyebrow">raqamli noma</p>
+      <h1>Har qanday vaziyat uchun <span>noma yarating</span></h1>
+      <p class="hero-sub">Nomalar.uz — to'y, tug'ilgan kun, bitiruv va boshqa muhim kunlaringiz uchun chiroyli raqamli nomalarni bir necha daqiqada, mutlaqo bepul yarating.</p>
+      <div class="hero-actions">
+        <button class="btn-primary" id="btn-start">Noma yaratish &rarr;</button>
+        <a href="#landing-qadam" class="btn-outline" style="text-decoration:none;display:inline-block;">Qanday ishlaydi?</a>
+      </div>
+    </section>
+
+    <section class="landing-section" id="landing-turlari">
+      <p class="eyebrow">14 xil shablon</p>
+      <h2 class="section-title">Noma turlarini tanlang</h2>
+      <p class="section-sub">Turli hayotiy voqealar uchun eng mos tanlangan uslublar.</p>
+      <div class="mini-grid">
+        <div class="mini-tpl"><span class="ic">💍</span><span class="mini-name">To'y</span></div>
+        <div class="mini-tpl"><span class="ic">🎂</span><span class="mini-name">Tug'ilgan kun</span></div>
+        <div class="mini-tpl"><span class="ic">🌙</span><span class="mini-name">Beshik to'yi</span></div>
+        <div class="mini-tpl"><span class="ic">🎓</span><span class="mini-name">Bitiruv</span></div>
+        <div class="mini-tpl"><span class="ic">🏛️</span><span class="mini-name">Rasmiy tadbir</span></div>
+        <div class="mini-tpl"><span class="ic">💌</span><span class="mini-name">Sevishganlar xati</span></div>
+        <div class="mini-tpl"><span class="ic">🙏</span><span class="mini-name">Minnatdorchilik</span></div>
+        <div class="mini-tpl"><span class="ic">➕</span><span class="mini-name">Va yana 7 tur</span></div>
+      </div>
+    </section>
+
+    <section class="landing-section" id="landing-qadam">
+      <p class="eyebrow">3 qadam</p>
+      <h2 class="section-title">Qanday ishlaydi?</h2>
+      <div class="benefit-grid">
+        <div class="benefit-card"><div class="ic">🖊️</div><h3>1. Turini tanlaysiz</h3><p>14 xil noma turidan birini tanlaysiz.</p></div>
+        <div class="benefit-card"><div class="ic">📝</div><h3>2. Ma'lumot kiritasiz</h3><p>Ism, sana, manzil kabi ma'lumotlarni formaga yozasiz.</p></div>
+        <div class="benefit-card"><div class="ic">🔗</div><h3>3. Link olasiz</h3><p>Tayyor sahifa uchun link yaratiladi, uni yuborasiz.</p></div>
+      </div>
+    </section>
+
+    <section class="landing-section" id="landing-afzallik">
+      <p class="eyebrow">Nega Nomalar.uz?</p>
+      <h2 class="section-title">Afzalliklar</h2>
+      <div class="benefit-grid">
+        <div class="benefit-card"><div class="ic">✨</div><h3>Zamonaviy dizayn</h3><p>Har bir shablon o'ziga xos, chiroyli uslubda.</p></div>
+        <div class="benefit-card"><div class="ic">💯</div><h3>100% bepul</h3><p>Hech qanday to'lov yoki obuna talab qilinmaydi.</p></div>
+        <div class="benefit-card"><div class="ic">⚡</div><h3>Tezkor</h3><p>Bir necha daqiqada tayyor link olasiz.</p></div>
+        <div class="benefit-card"><div class="ic">🌍</div><h3>Istalgan joydan ochiladi</h3><p>Google, Telegram yoki Instagram orqali — hammasi ishlaydi.</p></div>
+      </div>
+    </section>
   </div>
 </section>
 
@@ -630,43 +701,6 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
   </div>
 </div>
 
-<div id="dekor-modal" class="map-modal">
-  <div class="map-modal-inner" style="max-width:420px;">
-    <p class="map-modal-hint">Sayt bo'ylab suzib yuradigan rasmlar (4 tagacha, bo'sh qoldirilgan joy o'chadi)</p>
-    <div class="dekor-slots">
-      <div class="photo-field" data-slot="1">
-        <span class="map-field-label">1-rasm</span>
-        <input type="file" class="dk-file" accept="image/*">
-        <input type="url" class="dk-url" placeholder="yoki rasm havolasi">
-        <img class="dk-preview" alt="">
-      </div>
-      <div class="photo-field" data-slot="2">
-        <span class="map-field-label">2-rasm</span>
-        <input type="file" class="dk-file" accept="image/*">
-        <input type="url" class="dk-url" placeholder="yoki rasm havolasi">
-        <img class="dk-preview" alt="">
-      </div>
-      <div class="photo-field" data-slot="3">
-        <span class="map-field-label">3-rasm</span>
-        <input type="file" class="dk-file" accept="image/*">
-        <input type="url" class="dk-url" placeholder="yoki rasm havolasi">
-        <img class="dk-preview" alt="">
-      </div>
-      <div class="photo-field" data-slot="4">
-        <span class="map-field-label">4-rasm</span>
-        <input type="file" class="dk-file" accept="image/*">
-        <input type="url" class="dk-url" placeholder="yoki rasm havolasi">
-        <img class="dk-preview" alt="">
-      </div>
-    </div>
-    <div class="map-modal-actions">
-      <button type="button" id="dekor-cancel" class="btn-primary" style="background:transparent;border:1px solid var(--ink);color:var(--ink);box-shadow:none;">Yopish</button>
-      <button type="button" id="dekor-save" class="btn-primary">Saqlash</button>
-    </div>
-    <p class="dekor-status" id="dekor-status"></p>
-  </div>
-</div>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 function showScreen(id) {
@@ -674,131 +708,8 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 
-// --- Sichqoncha harakatiga qarab fon effekti (faqat kompyuterda) ---
-if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
-  const orbs = document.querySelectorAll('.bg-orb');
-  let mx = 0, my = 0, cx = 0, cy = 0;
-  document.addEventListener('mousemove', (e) => {
-    mx = (e.clientX / window.innerWidth - 0.5) * 2;
-    my = (e.clientY / window.innerHeight - 0.5) * 2;
-  });
-  function parallaxTick() {
-    cx += (mx - cx) * 0.04;
-    cy += (my - cy) * 0.04;
-    orbs.forEach((orb, i) => {
-      const depth = (i + 1) * 14;
-      orb.style.marginLeft = (cx * depth) + 'px';
-      orb.style.marginTop = (cy * depth) + 'px';
-    });
-    requestAnimationFrame(parallaxTick);
-  }
-  parallaxTick();
-}
-
-// --- Kartalarning sichqoncha bilan 3D egilishi (tilt effekti) ---
-if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
-  function attachTilt(el, strength) {
-    el.addEventListener('mousemove', (e) => {
-      const r = el.getBoundingClientRect();
-      const px = (e.clientX - r.left) / r.width - 0.5;
-      const py = (e.clientY - r.top) / r.height - 0.5;
-      const rx = (-py * strength).toFixed(2);
-      const ry = (px * strength).toFixed(2);
-      el.style.transform = 'perspective(1000px) rotateX(' + rx + 'deg) rotateY(' + ry + 'deg) translateY(-3px) scale(1.01)';
-    });
-    el.addEventListener('mouseleave', () => {
-      el.style.transform = '';
-    });
-  }
-  document.querySelectorAll('.intro-wrap, .explain-wrap, .form-wrap, .result-wrap').forEach((el) => attachTilt(el, 6));
-  document.querySelectorAll('.tpl-card').forEach((el) => attachTilt(el, 10));
-}
-
 document.getElementById('btn-start').addEventListener('click', () => showScreen('screen-explain'));
-
-// --- Dekor rasmlar oynachasi (bosh sahifada, Boshlash tugmasi yonida) ---
-const dekorModal = document.getElementById('dekor-modal');
-const dekorValues = { 1: '', 2: '', 3: '', 4: '' };
-
-function loadDekorPreviews() {
-  fetch('/api/dekor-rasmlar').then((r) => r.json()).then((data) => {
-    const imgs = (data && data.images) || [];
-    document.querySelectorAll('.dekor-slots .photo-field').forEach((slot, i) => {
-      const prev = slot.querySelector('.dk-preview');
-      if (imgs[i]) {
-        dekorValues[i + 1] = imgs[i];
-        prev.src = imgs[i];
-        prev.style.display = 'block';
-      } else {
-        dekorValues[i + 1] = '';
-        prev.removeAttribute('src');
-        prev.style.display = 'none';
-      }
-    });
-  }).catch(() => {});
-}
-
-document.getElementById('btn-dekor-open').addEventListener('click', () => {
-  loadDekorPreviews();
-  document.getElementById('dekor-status').textContent = '';
-  dekorModal.classList.add('active');
-});
-
-document.getElementById('dekor-cancel').addEventListener('click', () => {
-  dekorModal.classList.remove('active');
-});
-
-document.querySelectorAll('.dekor-slots .photo-field').forEach((slot) => {
-  const n = slot.dataset.slot;
-  const fileInput = slot.querySelector('.dk-file');
-  const urlInput = slot.querySelector('.dk-url');
-  const prev = slot.querySelector('.dk-preview');
-
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files && fileInput.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      dekorValues[n] = reader.result;
-      urlInput.value = '';
-      prev.src = reader.result;
-      prev.style.display = 'block';
-    };
-    reader.readAsDataURL(file);
-  });
-
-  urlInput.addEventListener('input', () => {
-    if (urlInput.value.trim()) {
-      dekorValues[n] = urlInput.value.trim();
-      fileInput.value = '';
-      prev.src = dekorValues[n];
-      prev.style.display = 'block';
-    } else if (!fileInput.files.length) {
-      dekorValues[n] = '';
-      prev.style.display = 'none';
-    }
-  });
-});
-
-document.getElementById('dekor-save').addEventListener('click', async () => {
-  const statusEl = document.getElementById('dekor-status');
-  statusEl.textContent = 'Saqlanmoqda...';
-  try {
-    const res = await fetch('/api/admin/dekor', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        slot1: dekorValues[1],
-        slot2: dekorValues[2],
-        slot3: dekorValues[3],
-        slot4: dekorValues[4],
-      }),
-    });
-    statusEl.textContent = res.ok ? 'Saqlandi ✓' : 'Xatolik yuz berdi.';
-  } catch (err) {
-    statusEl.textContent = 'Internet aloqasida muammo.';
-  }
-});
+document.getElementById('btn-nav-start').addEventListener('click', () => showScreen('screen-explain'));
 
 // --- Orqaga tugmalari ---
 document.querySelectorAll('.btn-back[data-back]').forEach(btn => {
@@ -1074,298 +985,9 @@ document.getElementById('btn-copy').addEventListener('click', () => {
 </html>"""
 
 
-# ============================================================
-#  SUZUVCHI RASMLAR — BUTUN SAYT BO'YLAB UMUMIY SKRIPT
-# ============================================================
-
-DECOR_IMAGES_SCRIPT = r"""
-<style>
-  .pg-decor-imgs { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-  .pg-decor-img { position: absolute; width: 84px; height: 84px; object-fit: contain; opacity: 0.94; border-radius: 14px; filter: drop-shadow(0 10px 22px rgba(20,10,40,0.22)); will-change: transform, left, top; pointer-events: auto; cursor: grab; touch-action: none; }
-  .pg-decor-img.pg-dragging { animation: none !important; cursor: grabbing; opacity: 1; filter: drop-shadow(0 16px 30px rgba(20,10,40,0.3)); }
-  .pg-df1 { animation: pgFloat1 8s ease-in-out infinite; }
-  .pg-df2 { animation: pgFloat2 9.5s ease-in-out infinite; }
-  .pg-df3 { animation: pgFloat3 8.6s ease-in-out infinite; }
-  .pg-df4 { animation: pgFloat2 10.5s ease-in-out infinite reverse; }
-  @keyframes pgFloat1 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(34px,-42px) rotate(10deg); } }
-  @keyframes pgFloat2 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(-38px,34px) rotate(-12deg); } }
-  @keyframes pgFloat3 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(30px,38px) rotate(14deg); } }
-  @media (max-width: 700px) { .pg-decor-img { width: 56px; height: 56px; } }
-  @media (prefers-reduced-motion: reduce) { .pg-decor-img { animation: none; } }
-</style>
-<script>
-(function () {
-  fetch('/api/dekor-rasmlar').then(function (r) { return r.json(); }).then(function (data) {
-    var imgs = (data && data.images) || [];
-    if (!imgs.length) return;
-
-    var card = document.body.querySelector(':scope > div, :scope > section, :scope > article');
-    if (card) {
-      var pos = window.getComputedStyle(card).position;
-      if (pos === 'static') { card.style.position = 'relative'; }
-      var z = window.getComputedStyle(card).zIndex;
-      if (z === 'auto' || !z) { card.style.zIndex = '2'; }
-    }
-
-    var positions = [
-      { top: '12%', left: '8%' },
-      { top: '68%', left: '10%' },
-      { top: '16%', right: '9%' },
-      { top: '70%', right: '12%' }
-    ];
-    var animClasses = ['pg-df1', 'pg-df2', 'pg-df3', 'pg-df4'];
-
-    var container = document.createElement('div');
-    container.className = 'pg-decor-imgs';
-    container.setAttribute('aria-hidden', 'true');
-
-    imgs.slice(0, 4).forEach(function (src, i) {
-      var im = document.createElement('img');
-      im.src = src;
-      im.alt = '';
-      im.className = 'pg-decor-img ' + animClasses[i % animClasses.length];
-      var p = positions[i % positions.length];
-      Object.keys(p).forEach(function (k) { im.style[k] = p[k]; });
-      container.appendChild(im);
-
-      var dragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
-
-      im.addEventListener('pointerdown', function (e) {
-        dragging = true;
-        try { im.setPointerCapture(e.pointerId); } catch (err) {}
-        im.classList.add('pg-dragging');
-        var rect = im.getBoundingClientRect();
-        im.style.left = rect.left + 'px';
-        im.style.top = rect.top + 'px';
-        im.style.right = 'auto';
-        im.style.bottom = 'auto';
-        origLeft = rect.left;
-        origTop = rect.top;
-        startX = e.clientX;
-        startY = e.clientY;
-        e.preventDefault();
-      });
-
-      im.addEventListener('pointermove', function (e) {
-        if (!dragging) return;
-        var dx = e.clientX - startX;
-        var dy = e.clientY - startY;
-        im.style.left = (origLeft + dx) + 'px';
-        im.style.top = (origTop + dy) + 'px';
-      });
-
-      function endDrag() {
-        if (!dragging) return;
-        dragging = false;
-        im.classList.remove('pg-dragging');
-      }
-      im.addEventListener('pointerup', endDrag);
-      im.addEventListener('pointercancel', endDrag);
-    });
-
-    document.body.insertBefore(container, document.body.firstChild);
-  }).catch(function () {});
-})();
-</script>
-"""
-
-HOME_PAGE = HOME_PAGE.replace("</body>", DECOR_IMAGES_SCRIPT + "</body>", 1)
-
-
-def inject_floating_decor(html: str) -> str:
-    if "</body>" in html:
-        return html.replace("</body>", DECOR_IMAGES_SCRIPT + "</body>", 1)
-    return html + DECOR_IMAGES_SCRIPT
-
-
 @app.get("/", response_class=HTMLResponse)
 def home():
     return HOME_PAGE
-
-
-# ============================================================
-#  SUZUVCHI RASMLAR (DEKOR) — BOSHQARUV SAHIFASI VA API
-# ============================================================
-
-DEKOR_SLOTS = ["decor_1", "decor_2", "decor_3", "decor_4"]
-
-DEKOR_ADMIN_PAGE = r"""<!DOCTYPE html>
-<html lang="uz">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nomalar.uz — Dekor rasmlar</title>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100vh; background: linear-gradient(160deg, #EEF2FF 0%, #F5ECFF 50%, #FFF0F5 100%); color: #201F33; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; padding: 48px 20px; }
-  .wrap { max-width: 480px; width: 100%; background: rgba(255,255,255,0.75); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.75); border-radius: 28px; padding: 40px 34px; box-shadow: 0 24px 70px rgba(109,93,246,0.2); }
-  h1 { font-family: 'Sora', sans-serif; font-size: 24px; margin: 0 0 6px; }
-  p.sub { color: #6B7080; font-size: 13.5px; margin: 0 0 28px; }
-  .slot { margin-bottom: 22px; border-top: 1px solid rgba(109,93,246,0.14); padding-top: 18px; }
-  .slot label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #6B7080; }
-  .slot input[type="file"] { font-size: 12.5px; margin-bottom: 8px; }
-  .slot input[type="url"] { width: 100%; font-size: 13px; background: rgba(255,255,255,0.7); border: 1px solid rgba(109,93,246,0.18); border-radius: 10px; padding: 9px 12px; color: #201F33; }
-  .slot img.preview { max-width: 70px; max-height: 70px; display: block; margin-top: 8px; border-radius: 8px; border: 1px solid #eee; }
-  .slot .clear-btn { font-size: 12px; color: #E1477A; background: none; border: none; cursor: pointer; margin-top: 6px; padding: 0; }
-  button.save { width: 100%; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; background: linear-gradient(135deg, #6D5DF6 0%, #C86DD7 55%, #FF8AAE 100%); color: #fff; border: none; border-radius: 999px; padding: 14px; cursor: pointer; margin-top: 8px; }
-  .status { text-align: center; font-size: 13px; margin-top: 14px; min-height: 16px; color: #4A9B6E; }
-</style>
-</head>
-<body>
-<div class="wrap">
-  <h1>Suzuvchi rasmlar</h1>
-  <p class="sub">Bu yerga tashlagan rasmlar (maksimal 4 ta) bosh sahifada va barcha noma sahifalarida suzib yuradi. Bo'sh qoldirilgan joy o'chiriladi.</p>
-  <form id="dekor-form">
-    <div class="slot" data-slot="1">
-      <label>1-rasm</label>
-      <input type="file" class="d-file" accept="image/*">
-      <input type="url" class="d-url" placeholder="yoki rasm havolasi (URL)">
-      <img class="preview" style="display:none;">
-      <button type="button" class="clear-btn">Tozalash</button>
-    </div>
-    <div class="slot" data-slot="2">
-      <label>2-rasm</label>
-      <input type="file" class="d-file" accept="image/*">
-      <input type="url" class="d-url" placeholder="yoki rasm havolasi (URL)">
-      <img class="preview" style="display:none;">
-      <button type="button" class="clear-btn">Tozalash</button>
-    </div>
-    <div class="slot" data-slot="3">
-      <label>3-rasm</label>
-      <input type="file" class="d-file" accept="image/*">
-      <input type="url" class="d-url" placeholder="yoki rasm havolasi (URL)">
-      <img class="preview" style="display:none;">
-      <button type="button" class="clear-btn">Tozalash</button>
-    </div>
-    <div class="slot" data-slot="4">
-      <label>4-rasm</label>
-      <input type="file" class="d-file" accept="image/*">
-      <input type="url" class="d-url" placeholder="yoki rasm havolasi (URL)">
-      <img class="preview" style="display:none;">
-      <button type="button" class="clear-btn">Tozalash</button>
-    </div>
-    <button type="submit" class="save">Saqlash</button>
-    <p class="status" id="status"></p>
-  </form>
-</div>
-<script>
-const slots = document.querySelectorAll('.slot');
-const values = {1: '', 2: '', 3: '', 4: ''};
-
-fetch('/api/dekor-rasmlar').then(r => r.json()).then(data => {
-  const imgs = (data && data.images) || [];
-  slots.forEach((slot, i) => {
-    if (imgs[i]) {
-      values[i + 1] = imgs[i];
-      const prev = slot.querySelector('.preview');
-      prev.src = imgs[i];
-      prev.style.display = 'block';
-    }
-  });
-});
-
-slots.forEach((slot) => {
-  const n = slot.dataset.slot;
-  const fileInput = slot.querySelector('.d-file');
-  const urlInput = slot.querySelector('.d-url');
-  const prev = slot.querySelector('.preview');
-  const clearBtn = slot.querySelector('.clear-btn');
-
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files && fileInput.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      values[n] = reader.result;
-      urlInput.value = '';
-      prev.src = reader.result;
-      prev.style.display = 'block';
-    };
-    reader.readAsDataURL(file);
-  });
-
-  urlInput.addEventListener('input', () => {
-    if (urlInput.value.trim()) {
-      values[n] = urlInput.value.trim();
-      fileInput.value = '';
-      prev.src = values[n];
-      prev.style.display = 'block';
-    }
-  });
-
-  clearBtn.addEventListener('click', () => {
-    values[n] = '';
-    fileInput.value = '';
-    urlInput.value = '';
-    prev.style.display = 'none';
-  });
-});
-
-document.getElementById('dekor-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const statusEl = document.getElementById('status');
-  statusEl.textContent = 'Saqlanmoqda...';
-  try {
-    const res = await fetch('/api/admin/dekor', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slot1: values[1], slot2: values[2], slot3: values[3], slot4: values[4] }),
-    });
-    if (res.ok) {
-      statusEl.textContent = 'Saqlandi ✓';
-    } else {
-      statusEl.textContent = 'Xatolik yuz berdi.';
-    }
-  } catch (err) {
-    statusEl.textContent = 'Internet aloqasida muammo.';
-  }
-});
-</script>
-</body>
-</html>"""
-
-
-@app.get("/admin/dekor", response_class=HTMLResponse)
-def dekor_admin_page():
-    return DEKOR_ADMIN_PAGE
-
-
-class DekorForm(BaseModel):
-    slot1: str = ""
-    slot2: str = ""
-    slot3: str = ""
-    slot4: str = ""
-
-
-@app.post("/api/admin/dekor")
-def save_dekor(form: DekorForm):
-    values = [form.slot1, form.slot2, form.slot3, form.slot4]
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    for key, value in zip(DEKOR_SLOTS, values):
-        cur.execute(
-            "INSERT INTO settings (key, value) VALUES (?, ?) "
-            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            (key, value),
-        )
-    conn.commit()
-    conn.close()
-    return {"ok": True}
-
-
-@app.get("/api/dekor-rasmlar")
-def get_dekor_images():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        f"SELECT key, value FROM settings WHERE key IN ({','.join('?' * len(DEKOR_SLOTS))})",
-        DEKOR_SLOTS,
-    )
-    rows = dict(cur.fetchall())
-    conn.close()
-    images = [rows[k] for k in DEKOR_SLOTS if rows.get(k)]
-    return {"images": images}
 
 
 # ============================================================
@@ -1911,52 +1533,8 @@ def view_page(slug: str):
 
     html = inject_photo(html, data)
     html = inject_music_player(html, data)
-    html = inject_tilt_effect(html)
-    html = inject_floating_decor(html)
     return inject_action_bar(html)
 
-
-# ============================================================
-#  NATIJA SAHIFALARIGA 3D TILT (SICHQONCHA BILAN EGILISH) EFFEKTI
-# ============================================================
-
-TILT_SCRIPT = r"""
-<style>
-  body { perspective: 1400px; }
-</style>
-<script>
-(function () {
-  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-  var card = document.body.firstElementChild;
-  if (!card) return;
-  card.style.transition = 'transform 0.35s cubic-bezier(0.22,1,0.36,1)';
-  card.style.willChange = 'transform';
-  card.addEventListener('mousemove', function (e) {
-    var r = card.getBoundingClientRect();
-    var px = (e.clientX - r.left) / r.width - 0.5;
-    var py = (e.clientY - r.top) / r.height - 0.5;
-    var rx = (-py * 6).toFixed(2);
-    var ry = (px * 6).toFixed(2);
-    card.style.transform = 'perspective(1000px) rotateX(' + rx + 'deg) rotateY(' + ry + 'deg) translateY(-2px)';
-  });
-  card.addEventListener('mouseleave', function () {
-    card.style.transform = '';
-  });
-})();
-</script>
-"""
-
-
-def inject_tilt_effect(html: str) -> str:
-    if "</body>" in html:
-        return html.replace("</body>", TILT_SCRIPT + "</body>", 1)
-    return html + TILT_SCRIPT
-
-
-# ============================================================
-#  HAR BIR NATIJA SAHIFASIGA QO'SHILADIGAN AMALLAR PANELI
-#  (Chop etish, Yuklab olish, Ulashish, QR kod)
-# ============================================================
 
 def inject_photo(html: str, data: dict) -> str:
     rasm = (data.get("rasm") or "").strip()
