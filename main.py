@@ -89,7 +89,287 @@ def unique_slug(base_slug: str) -> str:
 
 
 # ============================================================
-#  BOSH SAHIFA (HTML + CSS + JS — HAMMASI SHU YERDA)
+#  UMUMIY DIZAYN QISMLARI — IKONKALAR, NAVBAR, SAHIFA QOBIG'I
+#  (marketing sahifalari: bosh sahifa, noma turlari, qanday
+#   ishlaydi, afzalliklar — barchasi shu qismlardan foydalanadi)
+# ============================================================
+
+ICON_SVG = {
+    "heart": '<path d="M12 21s-7-4.35-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6C19 16.65 12 21 12 21Z"/>',
+    "cake": '<path d="M4 21v-7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7M4 21h16M8 12V8m4 4V8m4 4V8M8 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm4 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm4 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/>',
+    "document": '<path d="M7 3h7l5 5v13H7V3Z"/><path d="M14 3v5h5M9 12h6M9 16h6"/>',
+    "moon": '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/>',
+    "graduation": '<path d="M2 9 12 4l10 5-10 5-10-5Z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/>',
+    "building": '<path d="M4 21V7l8-4 8 4v14M4 21h16M9 21v-6h6v6"/>',
+    "shield": '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/>',
+    "envelope": '<path d="M3 6h18v12H3V6Z"/><path d="m3 7 9 6 9-6"/>',
+    "idcard": '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="12" r="2"/><path d="M13 10h6M13 14h4"/>',
+    "briefcase": '<rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    "bolt": '<path d="M13 2 3 14h7l-1 8 11-14h-7l0-6Z"/>',
+    "sparkle": '<path d="M12 2v6M12 16v6M2 12h6M16 12h6M5 5l4 4M15 15l4 4M19 5l-4 4M9 15l-4 4"/>',
+    "globe": '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',
+    "coin": '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 9.5c0-1.4 1.3-2.5 3-2.5s3 1.1 3 2.5-1.3 2-3 2.5c-1.7.5-3 1.1-3 2.5s1.3 2.5 3 2.5 3-1.1 3-2.5"/>',
+}
+
+
+def icon_badge(icon_key: str, size: int = 22, bg: str = "rgba(47,111,237,0.1)", color: str = "var(--accent1)") -> str:
+    svg_inner = ICON_SVG.get(icon_key, ICON_SVG["sparkle"])
+    return (
+        f'<span class="icon-badge" style="background:{bg};color:{color};">'
+        f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        f'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{svg_inner}</svg></span>'
+    )
+
+
+TEMPLATE_META = [
+    {"key": "toy", "name": "To'y taklifnomasi", "icon": "heart", "desc": "Kuyov-kelin, sana va manzil bilan chiroyli to'y taklifnomasi."},
+    {"key": "tugilgan-kun", "name": "Tug'ilgan kun", "icon": "cake", "desc": "Tug'ilgan kun kechasi uchun taklifnoma, sana va manzil bilan."},
+    {"key": "beshik", "name": "Beshik to'yi", "icon": "moon", "desc": "Chaqaloq va ota-ona ismi bilan beshik to'yi taklifnomasi."},
+    {"key": "bitiruv", "name": "Bitiruv marosimi", "icon": "graduation", "desc": "Maktab yoki universitet bitiruv marosimi uchun taklifnoma."},
+    {"key": "rasmiy", "name": "Rasmiy tadbir", "icon": "building", "desc": "Konferensiya, yig'ilish va boshqa rasmiy tadbirlar uchun."},
+    {"key": "sevishganlar", "name": "Sevishganlar xati", "icon": "envelope", "desc": "Yurak gaplaringizni chiroyli xat shaklida yetkazing."},
+    {"key": "kafolat", "name": "Kafolat xati", "icon": "shield", "desc": "Mahsulot yoki xizmat uchun rasmiy kafolat xati."},
+    {"key": "ota-ona-kafolat", "name": "Ota-ona kafolat xati", "icon": "shield", "desc": "O'quvchi uchun ota-ona tomonidan kafolat xati."},
+    {"key": "tugilgan-kun-tabrik", "name": "Tug'ilgan kun tabrigi", "icon": "cake", "desc": "Yaqiningizga tug'ilgan kun tabrigini yuboring."},
+    {"key": "tushuntirish", "name": "Tushuntirish xati", "icon": "document", "desc": "Rasmiy tushuntirish xati — maktab, ish joyi uchun."},
+    {"key": "eslatma", "name": "Eslatma xati", "icon": "document", "desc": "Muddat va topshiriqlar haqida rasmiy eslatma."},
+    {"key": "minnatdorchilik", "name": "Minnatdorchilik xati", "icon": "document", "desc": "Hamkor yoki jamoa a'zosiga minnatdorchilik bildiring."},
+    {"key": "vizitka", "name": "Vizitka", "icon": "idcard", "desc": "Ism, lavozim va aloqa ma'lumotlari bilan raqamli vizitka."},
+    {"key": "rezyume", "name": "Rezyume / CV", "icon": "briefcase", "desc": "Ish tajribasi va ko'nikmalar bilan raqamli rezyume."},
+]
+
+SITE_STYLE = r"""
+:root {
+  --bg1: #EAF2FF; --bg2: #F3F8FF; --bg3: #FFFFFF;
+  --ink: #16233B; --ink-dim: #64748B;
+  --glass: rgba(255,255,255,0.72); --glass-strong: rgba(255,255,255,0.9); --glass-border: rgba(219,231,249,0.9);
+  --accent1: #2F6FED; --accent2: #4A8CFF; --accent3: #7DB2FF;
+  --accent-grad: linear-gradient(135deg, var(--accent1) 0%, var(--accent2) 100%);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 45%, var(--bg3) 100%); color: var(--ink); font-family: 'Inter', sans-serif; min-height: 100vh; }
+.eyebrow { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent1); font-weight: 600; margin: 0 0 12px; }
+.navbar { position: sticky; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: 16px 5vw; background: rgba(255,255,255,0.9); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--glass-border); }
+.nav-logo { font-family: 'Sora', sans-serif; font-weight: 800; font-size: 19px; color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+.nav-logo .dot { color: var(--accent1); }
+.nav-links { display: flex; gap: 28px; list-style: none; margin: 0; padding: 0; }
+.nav-links a { color: var(--ink-dim); text-decoration: none; font-size: 14px; font-weight: 500; }
+.nav-links a:hover, .nav-links a.active { color: var(--accent1); }
+.nav-right { display: flex; align-items: center; gap: 14px; }
+.btn-login, .btn-primary { font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 600; background: var(--accent-grad); color: #fff; border: none; border-radius: 999px; padding: 11px 24px; cursor: pointer; text-decoration: none; display: inline-block; box-shadow: 0 8px 22px rgba(47,111,237,0.28); }
+.btn-login:hover, .btn-primary:hover { box-shadow: 0 10px 28px rgba(47,111,237,0.38); }
+.btn-outline { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; background: #fff; color: var(--accent1); border: 1px solid var(--glass-border); border-radius: 999px; padding: 13px 28px; cursor: pointer; text-decoration: none; display: inline-block; }
+@media (max-width: 780px) { .nav-links { display: none; } }
+.page-wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 44px 20px 80px; }
+.page-header { text-align: center; margin-bottom: 40px; }
+.section-title { font-family: 'Sora', sans-serif; font-weight: 700; font-size: clamp(24px,3.6vw,34px); margin: 0 0 12px; color: var(--ink); }
+.section-sub { color: var(--ink-dim); font-size: 15px; max-width: 560px; margin: 0 auto; line-height: 1.6; }
+.icon-badge { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0; }
+.hero { text-align: center; padding: 40px 20px 10px; }
+.hero h1 { font-family: 'Sora', sans-serif; font-weight: 800; font-size: clamp(28px,4.5vw,46px); line-height: 1.15; color: var(--ink); margin: 0 0 16px; }
+.hero h1 span { background: var(--accent-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero p.hero-sub { color: var(--ink-dim); font-size: 15.5px; max-width: 520px; margin: 0 auto 28px; line-height: 1.6; }
+.hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.tpl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 16px; }
+.tpl-page-card { background: #fff; border: 1px solid var(--glass-border); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 12px; text-align: left; box-shadow: 0 4px 16px rgba(47,111,237,0.07); }
+.tpl-page-card .tpl-name { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 15.5px; color: var(--ink); }
+.tpl-page-card p { font-size: 13px; color: var(--ink-dim); margin: 0; line-height: 1.5; }
+.tpl-page-card a.btn-outline { margin-top: 6px; padding: 9px 18px; font-size: 13px; align-self: flex-start; }
+.benefit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 18px; }
+.benefit-card { background: #fff; border: 1px solid var(--glass-border); border-radius: 18px; padding: 28px 24px; text-align: left; box-shadow: 0 4px 16px rgba(47,111,237,0.07); }
+.benefit-card .icon-badge { margin-bottom: 14px; }
+.benefit-card h3 { font-family: 'Sora', sans-serif; font-size: 16px; margin: 0 0 8px; color: var(--ink); }
+.benefit-card p { font-size: 13.5px; color: var(--ink-dim); margin: 0; line-height: 1.6; }
+.step-list { display: flex; flex-direction: column; gap: 18px; max-width: 720px; margin: 0 auto; }
+.step-card { background: #fff; border: 1px solid var(--glass-border); border-radius: 20px; padding: 26px 28px; display: flex; gap: 20px; align-items: flex-start; text-align: left; box-shadow: 0 4px 16px rgba(47,111,237,0.07); }
+.step-num { font-family: 'Sora', sans-serif; font-weight: 800; font-size: 22px; color: var(--accent1); background: rgba(47,111,237,0.1); width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.step-card h3 { font-family: 'Sora', sans-serif; font-size: 17px; margin: 2px 0 8px; color: var(--ink); }
+.step-card p { font-size: 14px; color: var(--ink-dim); line-height: 1.65; margin: 0 0 8px; }
+.step-card ul { margin: 8px 0 0; padding-left: 18px; color: var(--ink-dim); font-size: 13.5px; line-height: 1.7; }
+.site-footer-static { text-align: center; font-size: 12px; color: var(--ink-dim); opacity: 0.75; padding: 20px 20px 36px; }
+"""
+
+
+def nav_html(active: str = "") -> str:
+    def cls(name):
+        return "active" if name == active else ""
+
+    return f"""<nav class="navbar">
+  <a href="/" class="nav-logo">Nomalar<span class="dot">.</span>uz</a>
+  <ul class="nav-links">
+    <li><a href="/" class="{cls('home')}">Bosh sahifa</a></li>
+    <li><a href="/turlar" class="{cls('turlar')}">Noma turlari</a></li>
+    <li><a href="/qanday-ishlaydi" class="{cls('qanday')}">Qanday ishlaydi?</a></li>
+    <li><a href="/afzalliklar" class="{cls('afzallik')}">Afzalliklar</a></li>
+  </ul>
+  <div class="nav-right">
+    <a class="btn-login" href="/yaratish">Noma yaratish</a>
+  </div>
+</nav>"""
+
+
+def page_shell(title: str, active: str, body: str) -> str:
+    return f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>{SITE_STYLE}</style>
+</head>
+<body>
+{nav_html(active)}
+{body}
+<p class="site-footer-static">Yaratuvchi: Ilhomjonov Shahzodbek</p>
+</body>
+</html>"""
+
+
+@app.get("/turlar", response_class=HTMLResponse)
+def turlar_page():
+    cards = ""
+    for t in TEMPLATE_META:
+        cards += f"""<div class="tpl-page-card">
+  {icon_badge(t['icon'])}
+  <span class="tpl-name">{t['name']}</span>
+  <p>{t['desc']}</p>
+  <a class="btn-outline" href="/yaratish">Yaratish &rarr;</a>
+</div>
+"""
+    body = f"""<div class="page-wrap">
+  <div class="page-header">
+    <p class="eyebrow">14 xil shablon</p>
+    <h1 class="section-title">Noma turlarini tanlang</h1>
+    <p class="section-sub">Turli hayotiy voqealar uchun eng mos tanlangan uslublar — har biri o'ziga xos dizaynda.</p>
+  </div>
+  <div class="tpl-grid">
+    {cards}
+  </div>
+</div>"""
+    return page_shell("Noma turlari — Nomalar.uz", "turlar", body)
+
+
+@app.get("/qanday-ishlaydi", response_class=HTMLResponse)
+def qanday_ishlaydi_page():
+    body = f"""<div class="page-wrap">
+  <div class="page-header">
+    <p class="eyebrow">3 oddiy qadam</p>
+    <h1 class="section-title">Qanday ishlaydi?</h1>
+    <p class="section-sub">Nomalar.uz orqali chiroyli raqamli noma yaratish — ro'yxatdan o'tishsiz, to'lovsiz, atigi bir necha daqiqada.</p>
+  </div>
+  <div class="step-list">
+    <div class="step-card">
+      <span class="step-num">1</span>
+      <div>
+        <h3>Noma turini tanlaysiz</h3>
+        <p>To'y, tug'ilgan kun, beshik to'yi, bitiruv marosimi, rasmiy tadbir va yana 9 xil noma turidan biriga bosasiz. Har bir tur o'ziga xos rang va uslubda tayyorlangan — mavzuga mos chiqadi.</p>
+        <ul>
+          <li>14 xil tayyor shablon, hech biri bir-birini takrorlamaydi</li>
+          <li>Har birida o'z rangi, shrifti va joylashuvi bor</li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card">
+      <span class="step-num">2</span>
+      <div>
+        <h3>Ma'lumotlarni kiritasiz</h3>
+        <p>Ism, sana, vaqt va manzil kabi asosiy ma'lumotlarni oddiy formaga yozasiz. Xohlasangiz manzilni xaritadan belgilashingiz, rasm yoki fon musiqasi qo'shishingiz, hatto asosiy rangni o'zgartirishingiz mumkin — bularning barchasi ixtiyoriy.</p>
+        <ul>
+          <li>Xaritadan aniq manzil tanlash (Toshkent va butun O'zbekiston bo'ylab)</li>
+          <li>Rasm, fon musiqasi va rangni moslashtirish ixtiyoriy</li>
+        </ul>
+      </div>
+    </div>
+    <div class="step-card">
+      <span class="step-num">3</span>
+      <div>
+        <h3>Havolani olib, ulashasiz</h3>
+        <p>Bir necha soniyada shaxsiy havolangiz tayyor bo'ladi. Uni Telegram, Instagram yoki istalgan ilova orqali mehmonlaringizga yuborasiz. Sahifada chop etish, rasm sifatida yuklab olish va QR kod orqali ulashish imkoniyatlari ham bor.</p>
+        <ul>
+          <li>Havola doimiy — istalgan vaqt qayta ochiladi</li>
+          <li>Chop etish, yuklab olish va QR kod — bittasi bilan</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div style="text-align:center;margin-top:44px;">
+    <a class="btn-login" href="/yaratish">Hoziroq boshlash &rarr;</a>
+  </div>
+</div>"""
+    return page_shell("Qanday ishlaydi? — Nomalar.uz", "qanday", body)
+
+
+@app.get("/afzalliklar", response_class=HTMLResponse)
+def afzalliklar_page():
+    items = [
+        ("sparkle", "Zamonaviy dizayn", "Har bir shablon alohida ishlab chiqilgan, o'ziga xos rang va uslubda — andoza his qilinmaydi."),
+        ("coin", "100% bepul", "Hech qanday to'lov, obuna yoki yashirin cheklov yo'q — barcha shablonlar hammaga ochiq."),
+        ("bolt", "Tezkor", "Formani to'ldirib, bir necha soniyada tayyor havola olasiz — kutish yo'q."),
+        ("globe", "Istalgan joydan ochiladi", "Havola Telegram, Instagram, brauzer — qayerda ulashmang, mukammal ochiladi."),
+        ("shield", "Ishonchli va barqaror", "Yaratilgan sahifangiz doimiy havolada saqlanadi, istalgan vaqt qayta ochiladi."),
+        ("idcard", "Shaxsiylashtirish", "Rasm, fon musiqasi va asosiy rangni o'zingizga moslab o'zgartirishingiz mumkin."),
+    ]
+    cards = ""
+    for icon, title, desc in items:
+        cards += f"""<div class="benefit-card">
+  {icon_badge(icon, size=24)}
+  <h3>{title}</h3>
+  <p>{desc}</p>
+</div>
+"""
+    body = f"""<div class="page-wrap">
+  <div class="page-header">
+    <p class="eyebrow">Nega Nomalar.uz?</p>
+    <h1 class="section-title">Afzalliklar</h1>
+    <p class="section-sub">Nomalar.uz'ni tanlashning bir nechta sababi.</p>
+  </div>
+  <div class="benefit-grid">
+    {cards}
+  </div>
+</div>"""
+    return page_shell("Afzalliklar — Nomalar.uz", "afzallik", body)
+
+
+@app.get("/", response_class=HTMLResponse)
+def landing_home():
+    mini_cards = ""
+    for t in TEMPLATE_META[:8]:
+        mini_cards += f"""<div class="tpl-page-card" style="text-align:center;align-items:center;">
+  {icon_badge(t['icon'])}
+  <span class="tpl-name">{t['name']}</span>
+</div>
+"""
+    body = f"""<div class="page-wrap" style="padding-top:10px;">
+  <section class="hero">
+    <p class="eyebrow">raqamli noma</p>
+    <h1>Har qanday vaziyat uchun <span>noma yarating</span></h1>
+    <p class="hero-sub">Nomalar.uz — to'y, tug'ilgan kun, bitiruv va boshqa muhim kunlaringiz uchun chiroyli raqamli nomalarni bir necha daqiqada, mutlaqo bepul yarating.</p>
+    <div class="hero-actions">
+      <a class="btn-login" href="/yaratish">Noma yaratish &rarr;</a>
+      <a class="btn-outline" href="/qanday-ishlaydi">Qanday ishlaydi?</a>
+    </div>
+  </section>
+
+  <div class="page-header" style="margin-top:60px;">
+    <p class="eyebrow">14 xil shablon</p>
+    <h2 class="section-title">Noma turlarini tanlang</h2>
+    <p class="section-sub">Turli hayotiy voqealar uchun eng mos tanlangan uslublar.</p>
+  </div>
+  <div class="tpl-grid">
+    {mini_cards}
+  </div>
+  <div style="text-align:center;margin-top:22px;">
+    <a class="btn-outline" href="/turlar">Barcha turlarni ko'rish &rarr;</a>
+  </div>
+</div>"""
+    return page_shell("Nomalar.uz — muhim daqiqalaringiz uchun noma", "home", body)
+
+
+# ============================================================
+#  NOMA YARATISH OQIMI (HTML + CSS + JS — HAMMASI SHU YERDA)
 # ============================================================
 
 HOME_PAGE = r"""<!DOCTYPE html>
@@ -262,72 +542,8 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
   </svg>
 </div>
 
-<section id="screen-intro" class="screen active">
-  <nav class="navbar">
-    <div class="nav-logo">Nomalar<span class="dot">.</span>uz</div>
-    <ul class="nav-links">
-      <li><a href="#screen-intro" onclick="return false;">Bosh sahifa</a></li>
-      <li><a href="#landing-turlari">Noma turlari</a></li>
-      <li><a href="#landing-qadam">Qanday ishlaydi?</a></li>
-      <li><a href="#landing-afzallik">Afzalliklar</a></li>
-    </ul>
-    <div class="nav-right">
-      <button class="btn-login" id="btn-nav-start">Boshlash</button>
-    </div>
-  </nav>
-
-  <div class="landing-wrap">
-    <section class="hero">
-      <p class="eyebrow">raqamli noma</p>
-      <h1>Har qanday vaziyat uchun <span>noma yarating</span></h1>
-      <p class="hero-sub">Nomalar.uz — to'y, tug'ilgan kun, bitiruv va boshqa muhim kunlaringiz uchun chiroyli raqamli nomalarni bir necha daqiqada, mutlaqo bepul yarating.</p>
-      <div class="hero-actions">
-        <button class="btn-primary" id="btn-start">Noma yaratish &rarr;</button>
-        <a href="#landing-qadam" class="btn-outline" style="text-decoration:none;display:inline-block;">Qanday ishlaydi?</a>
-      </div>
-    </section>
-
-    <section class="landing-section" id="landing-turlari">
-      <p class="eyebrow">14 xil shablon</p>
-      <h2 class="section-title">Noma turlarini tanlang</h2>
-      <p class="section-sub">Turli hayotiy voqealar uchun eng mos tanlangan uslublar.</p>
-      <div class="mini-grid">
-        <div class="mini-tpl"><span class="ic">💍</span><span class="mini-name">To'y</span></div>
-        <div class="mini-tpl"><span class="ic">🎂</span><span class="mini-name">Tug'ilgan kun</span></div>
-        <div class="mini-tpl"><span class="ic">🌙</span><span class="mini-name">Beshik to'yi</span></div>
-        <div class="mini-tpl"><span class="ic">🎓</span><span class="mini-name">Bitiruv</span></div>
-        <div class="mini-tpl"><span class="ic">🏛️</span><span class="mini-name">Rasmiy tadbir</span></div>
-        <div class="mini-tpl"><span class="ic">💌</span><span class="mini-name">Sevishganlar xati</span></div>
-        <div class="mini-tpl"><span class="ic">🙏</span><span class="mini-name">Minnatdorchilik</span></div>
-        <div class="mini-tpl"><span class="ic">➕</span><span class="mini-name">Va yana 7 tur</span></div>
-      </div>
-    </section>
-
-    <section class="landing-section" id="landing-qadam">
-      <p class="eyebrow">3 qadam</p>
-      <h2 class="section-title">Qanday ishlaydi?</h2>
-      <div class="benefit-grid">
-        <div class="benefit-card"><div class="ic">🖊️</div><h3>1. Turini tanlaysiz</h3><p>14 xil noma turidan birini tanlaysiz.</p></div>
-        <div class="benefit-card"><div class="ic">📝</div><h3>2. Ma'lumot kiritasiz</h3><p>Ism, sana, manzil kabi ma'lumotlarni formaga yozasiz.</p></div>
-        <div class="benefit-card"><div class="ic">🔗</div><h3>3. Link olasiz</h3><p>Tayyor sahifa uchun link yaratiladi, uni yuborasiz.</p></div>
-      </div>
-    </section>
-
-    <section class="landing-section" id="landing-afzallik">
-      <p class="eyebrow">Nega Nomalar.uz?</p>
-      <h2 class="section-title">Afzalliklar</h2>
-      <div class="benefit-grid">
-        <div class="benefit-card"><div class="ic">✨</div><h3>Zamonaviy dizayn</h3><p>Har bir shablon o'ziga xos, chiroyli uslubda.</p></div>
-        <div class="benefit-card"><div class="ic">💯</div><h3>100% bepul</h3><p>Hech qanday to'lov yoki obuna talab qilinmaydi.</p></div>
-        <div class="benefit-card"><div class="ic">⚡</div><h3>Tezkor</h3><p>Bir necha daqiqada tayyor link olasiz.</p></div>
-        <div class="benefit-card"><div class="ic">🌍</div><h3>Istalgan joydan ochiladi</h3><p>Google, Telegram yoki Instagram orqali — hammasi ishlaydi.</p></div>
-      </div>
-    </section>
-  </div>
-</section>
-
-<section id="screen-explain" class="screen">
-  <button class="btn-back" id="btn-back-explain">&larr; Orqaga</button>
+<section id="screen-explain" class="screen active">
+  <a class="btn-back" href="/" style="text-decoration:none;">&larr; Bosh sahifa</a>
   <div class="explain-wrap">
     <div class="explain-slide" data-index="0">
       <span class="explain-num">01</span>
@@ -708,9 +924,6 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 
-document.getElementById('btn-start').addEventListener('click', () => showScreen('screen-explain'));
-document.getElementById('btn-nav-start').addEventListener('click', () => showScreen('screen-explain'));
-
 // --- Orqaga tugmalari ---
 document.querySelectorAll('.btn-back[data-back]').forEach(btn => {
   btn.addEventListener('click', () => showScreen(btn.dataset.back));
@@ -732,11 +945,6 @@ setSlide(0);
 document.getElementById('btn-continue').addEventListener('click', () => {
   if (currentSlide < slides.length - 1) { setSlide(currentSlide + 1); }
   else { showScreen('screen-templates'); }
-});
-
-document.getElementById('btn-back-explain').addEventListener('click', () => {
-  if (currentSlide > 0) { setSlide(currentSlide - 1); }
-  else { showScreen('screen-intro'); }
 });
 
 const tplCards = document.querySelectorAll('.tpl-card');
@@ -985,7 +1193,7 @@ document.getElementById('btn-copy').addEventListener('click', () => {
 </html>"""
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/yaratish", response_class=HTMLResponse)
 def home():
     return HOME_PAGE
 
