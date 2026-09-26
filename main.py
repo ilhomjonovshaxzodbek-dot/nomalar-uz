@@ -198,6 +198,14 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .step-card p { font-size: 14px; color: var(--ink-dim); line-height: 1.65; margin: 0 0 8px; }
 .step-card ul { margin: 8px 0 0; padding-left: 18px; color: var(--ink-dim); font-size: 13.5px; line-height: 1.7; }
 .site-footer-static { text-align: center; font-size: 12.5px; color: var(--ink-dim); padding: 24px 20px 36px; border-top: 1px solid var(--glass-border); margin-top: 20px; }
+@media (max-width: 480px) {
+  .page-wrap { padding: 28px 16px 60px; }
+  .hero { padding: 24px 10px 6px; }
+  .step-card { padding: 20px 18px; gap: 14px; }
+  .step-num { width: 36px; height: 36px; font-size: 17px; border-radius: 11px; }
+  .tpl-page-card, .benefit-card { padding: 18px; }
+  .mobile-menu { left: 3vw; right: 3vw; }
+}
 """
 
 
@@ -510,10 +518,19 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .tpl-name { font-size: 13.5px; font-weight: 600; }
 .next-note { margin-top: 26px; font-size: 13px; color: var(--ink-dim); }
 .form-wrap { width: min(92vw, 440px); background: var(--glass); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--glass-border); border-radius: 32px; padding: 44px 36px; box-shadow: 0 24px 70px rgba(109,93,246,0.22), 0 2px 8px rgba(109,93,246,0.08), inset 0 1px 0 rgba(255,255,255,0.7); }
+@media (max-width: 480px) {
+  .screen { padding: 88px 16px 40px; }
+  .form-wrap, .result-wrap, .explain-wrap { padding: 32px 22px; border-radius: 24px; }
+  .template-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tpl-card { padding: 16px 12px; }
+}
+@media (max-width: 360px) {
+  .template-grid { grid-template-columns: 1fr; }
+}
 .form-wrap .section-title { text-align: center; }
-.app-form { display: flex; flex-direction: column; gap: 16px; }
-.app-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-dim); font-weight: 500; }
-.app-form input, .app-form textarea { font-family: 'Inter', sans-serif; font-size: 14px; background: rgba(255,255,255,0.75); border: 1px solid rgba(109,93,246,0.14); border-radius: 14px; padding: 12px 14px; color: var(--ink); transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease; box-shadow: inset 0 1px 2px rgba(109,93,246,0.04); }
+.app-form { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+.app-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-dim); font-weight: 500; width: 100%; }
+.app-form input, .app-form textarea, .app-form select { width: 100%; max-width: 100%; font-family: 'Inter', sans-serif; font-size: 14px; background: rgba(255,255,255,0.75); border: 1px solid rgba(109,93,246,0.14); border-radius: 14px; padding: 12px 14px; color: var(--ink); transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease; box-shadow: inset 0 1px 2px rgba(109,93,246,0.04); }
 .app-form input:hover, .app-form textarea:hover { background: rgba(255,255,255,0.9); }
 .app-form input:focus, .app-form textarea:focus { outline: none; border-color: var(--accent1); background: #fff; box-shadow: 0 0 0 4px rgba(109,93,246,0.14); }
 .app-form textarea { font-family: inherit; resize: vertical; }
@@ -530,10 +547,10 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .btn-map-pick { align-self: flex-start; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; background: rgba(109,93,246,0.1); border: 1px solid var(--accent1); color: var(--accent1); border-radius: 999px; padding: 9px 16px; cursor: pointer; }
 .btn-map-pick:hover { background: rgba(109,93,246,0.18); }
 .map-preview { font-size: 12px; color: var(--ink-dim); margin: 0; }
-.photo-field { display: flex; flex-direction: column; gap: 6px; }
-.photo-field input[type="file"] { font-family: 'Inter', sans-serif; font-size: 12.5px; color: var(--ink-dim); }
+.photo-field { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.photo-field input[type="file"] { width: 100%; max-width: 100%; font-family: 'Inter', sans-serif; font-size: 12.5px; color: var(--ink-dim); }
 .photo-field input[type="file"]::file-selector-button { font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 600; background: rgba(109,93,246,0.1); border: 1px solid var(--accent1); color: var(--accent1); border-radius: 999px; padding: 7px 14px; cursor: pointer; margin-right: 8px; }
-.photo-field input[type="url"] { font-family: 'Inter', sans-serif; font-size: 13px; background: rgba(255,255,255,0.7); border: 1px solid rgba(109,93,246,0.18); border-radius: 10px; padding: 9px 12px; color: var(--ink); }
+.photo-field input[type="url"] { width: 100%; max-width: 100%; font-family: 'Inter', sans-serif; font-size: 13px; background: rgba(255,255,255,0.7); border: 1px solid rgba(109,93,246,0.18); border-radius: 10px; padding: 9px 12px; color: var(--ink); }
 .photo-preview-note { font-size: 12px; color: var(--accent2); font-weight: 500; margin: 0; min-height: 14px; }
 .color-field { display: flex; flex-direction: column; gap: 8px; }
 .color-field input[type="color"] { width: 52px; height: 36px; padding: 2px; border: 1px solid rgba(109,93,246,0.18); border-radius: 8px; background: transparent; cursor: pointer; }
