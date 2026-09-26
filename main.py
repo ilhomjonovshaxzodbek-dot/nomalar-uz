@@ -159,7 +159,18 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .btn-login, .btn-primary { font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 600; background: var(--accent-grad); color: #fff; border: none; border-radius: 999px; padding: 11px 24px; cursor: pointer; text-decoration: none; display: inline-block; box-shadow: 0 8px 22px rgba(47,111,237,0.28); }
 .btn-login:hover, .btn-primary:hover { box-shadow: 0 10px 28px rgba(47,111,237,0.38); }
 .btn-outline { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; background: #fff; color: var(--accent1); border: 1px solid var(--glass-border); border-radius: 999px; padding: 13px 28px; cursor: pointer; text-decoration: none; display: inline-block; }
-@media (max-width: 780px) { .nav-links { display: none; } }
+.nav-burger { display: none; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--glass-border); background: #fff; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.nav-burger svg { width: 18px; height: 18px; color: var(--ink); }
+.mobile-menu { display: none; flex-direction: column; gap: 2px; position: absolute; top: 64px; left: 4vw; right: 4vw; background: #fff; border: 1px solid var(--glass-border); border-radius: 16px; padding: 10px; box-shadow: 0 16px 40px rgba(22,35,59,0.16); z-index: 25; }
+.mobile-menu.open { display: flex; }
+.mobile-menu a { color: var(--ink); text-decoration: none; font-size: 14.5px; font-weight: 600; padding: 12px 14px; border-radius: 10px; }
+.mobile-menu a:hover, .mobile-menu a.active { background: rgba(47,111,237,0.08); color: var(--accent1); }
+.mobile-menu a.btn-login { text-align: center; background: var(--accent-grad); color: #fff; margin-top: 4px; }
+@media (max-width: 780px) {
+  .nav-links { display: none; }
+  .nav-right .btn-login { display: none; }
+  .nav-burger { display: flex; }
+}
 .page-wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 44px 20px 80px; }
 .page-header { text-align: center; margin-bottom: 40px; }
 .section-title { font-family: 'Sora', sans-serif; font-weight: 700; font-size: clamp(24px,3.6vw,34px); margin: 0 0 12px; color: var(--ink); }
@@ -186,7 +197,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .step-card h3 { font-family: 'Sora', sans-serif; font-size: 17px; margin: 2px 0 8px; color: var(--ink); }
 .step-card p { font-size: 14px; color: var(--ink-dim); line-height: 1.65; margin: 0 0 8px; }
 .step-card ul { margin: 8px 0 0; padding-left: 18px; color: var(--ink-dim); font-size: 13.5px; line-height: 1.7; }
-.site-footer-static { text-align: center; font-size: 12px; color: var(--ink-dim); opacity: 0.75; padding: 20px 20px 36px; }
+.site-footer-static { text-align: center; font-size: 12.5px; color: var(--ink-dim); padding: 24px 20px 36px; border-top: 1px solid var(--glass-border); margin-top: 20px; }
 """
 
 
@@ -204,8 +215,29 @@ def nav_html(active: str = "") -> str:
   </ul>
   <div class="nav-right">
     <a class="btn-login" href="/yaratish">Noma yaratish</a>
+    <button type="button" class="nav-burger" id="nav-burger-btn" aria-label="Menyu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
   </div>
-</nav>"""
+  <div class="mobile-menu" id="nav-mobile-menu">
+    <a href="/" class="{cls('home')}">Bosh sahifa</a>
+    <a href="/turlar" class="{cls('turlar')}">Noma turlari</a>
+    <a href="/qanday-ishlaydi" class="{cls('qanday')}">Qanday ishlaydi?</a>
+    <a href="/afzalliklar" class="{cls('afzallik')}">Afzalliklar</a>
+    <a href="/yaratish" class="btn-login">Noma yaratish</a>
+  </div>
+</nav>
+<script>
+(function () {{
+  var btn = document.getElementById('nav-burger-btn');
+  var menu = document.getElementById('nav-mobile-menu');
+  if (!btn || !menu) return;
+  btn.addEventListener('click', function () {{ menu.classList.toggle('open'); }});
+  document.addEventListener('click', function (e) {{
+    if (!menu.contains(e.target) && !btn.contains(e.target)) {{ menu.classList.remove('open'); }}
+  }});
+}})();
+</script>"""
 
 
 def page_shell(title: str, active: str, body: str) -> str:
