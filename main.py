@@ -248,6 +248,46 @@ def nav_html(active: str = "") -> str:
 </script>"""
 
 
+CURSOR_FX = r"""
+<style>
+@media (hover: hover) and (pointer: fine) {
+  body { cursor: none; }
+  a, button, .tpl-card, .tpl-page-card, .mini-tpl, .btn-back { cursor: none; }
+  .cursor-dot { position: fixed; top: 0; left: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--accent1); pointer-events: none; z-index: 9999; transform: translate(-50%,-50%); transition: background 0.15s ease, transform 0.1s ease; }
+  .cursor-ring { position: fixed; top: 0; left: 0; width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--accent1); opacity: 0.5; pointer-events: none; z-index: 9998; transform: translate(-50%,-50%); transition: width 0.2s ease, height 0.2s ease, opacity 0.2s ease, background 0.2s ease; }
+  .cursor-ring.pg-hover { width: 52px; height: 52px; opacity: 0.9; background: rgba(47,111,237,0.08); }
+  .cursor-dot.pg-hover { transform: translate(-50%,-50%) scale(0); }
+}
+</style>
+<script>
+(function () {
+  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+  var dot = document.createElement('div'); dot.className = 'cursor-dot';
+  var ring = document.createElement('div'); ring.className = 'cursor-ring';
+  document.body.appendChild(dot);
+  document.body.appendChild(ring);
+  var mx = -100, my = -100, rx = -100, ry = -100;
+  document.addEventListener('mousemove', function (e) {
+    mx = e.clientX; my = e.clientY;
+    dot.style.left = mx + 'px'; dot.style.top = my + 'px';
+  });
+  (function loop() {
+    rx += (mx - rx) * 0.2; ry += (my - ry) * 0.2;
+    ring.style.left = rx + 'px'; ring.style.top = ry + 'px';
+    requestAnimationFrame(loop);
+  })();
+  var hoverSel = 'a, button, .tpl-card, .tpl-page-card, .mini-tpl, input, textarea, select, label';
+  document.addEventListener('mouseover', function (e) {
+    if (e.target.closest(hoverSel)) { ring.classList.add('pg-hover'); dot.classList.add('pg-hover'); }
+  });
+  document.addEventListener('mouseout', function (e) {
+    if (e.target.closest(hoverSel)) { ring.classList.remove('pg-hover'); dot.classList.remove('pg-hover'); }
+  });
+})();
+</script>
+"""
+
+
 def page_shell(title: str, active: str, body: str) -> str:
     return f"""<!DOCTYPE html>
 <html lang="uz">
@@ -264,6 +304,7 @@ def page_shell(title: str, active: str, body: str) -> str:
 {nav_html(active)}
 {body}
 <p class="site-footer-static">Yaratuvchi: Ilhomjonov Shahzodbek</p>
+{CURSOR_FX}
 </body>
 </html>"""
 
@@ -1193,6 +1234,43 @@ document.getElementById('btn-copy').addEventListener('click', () => {
   setTimeout(() => { btn.textContent = original; }, 1500);
 });
 </script>
+
+<style>
+@media (hover: hover) and (pointer: fine) {
+  body { cursor: none; }
+  a, button, .tpl-card, .btn-back { cursor: none; }
+  .cursor-dot { position: fixed; top: 0; left: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--accent1); pointer-events: none; z-index: 9999; transform: translate(-50%,-50%); transition: background 0.15s ease, transform 0.1s ease; }
+  .cursor-ring { position: fixed; top: 0; left: 0; width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--accent1); opacity: 0.5; pointer-events: none; z-index: 9998; transform: translate(-50%,-50%); transition: width 0.2s ease, height 0.2s ease, opacity 0.2s ease, background 0.2s ease; }
+  .cursor-ring.pg-hover { width: 52px; height: 52px; opacity: 0.9; background: rgba(47,111,237,0.08); }
+  .cursor-dot.pg-hover { transform: translate(-50%,-50%) scale(0); }
+}
+</style>
+<script>
+(function () {
+  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+  var dot = document.createElement('div'); dot.className = 'cursor-dot';
+  var ring = document.createElement('div'); ring.className = 'cursor-ring';
+  document.body.appendChild(dot);
+  document.body.appendChild(ring);
+  var mx = -100, my = -100, rx = -100, ry = -100;
+  document.addEventListener('mousemove', function (e) {
+    mx = e.clientX; my = e.clientY;
+    dot.style.left = mx + 'px'; dot.style.top = my + 'px';
+  });
+  (function loop() {
+    rx += (mx - rx) * 0.2; ry += (my - ry) * 0.2;
+    ring.style.left = rx + 'px'; ring.style.top = ry + 'px';
+    requestAnimationFrame(loop);
+  })();
+  var hoverSel = 'a, button, .tpl-card, input, textarea, select, label';
+  document.addEventListener('mouseover', function (e) {
+    if (e.target.closest(hoverSel)) { ring.classList.add('pg-hover'); dot.classList.add('pg-hover'); }
+  });
+  document.addEventListener('mouseout', function (e) {
+    if (e.target.closest(hoverSel)) { ring.classList.remove('pg-hover'); dot.classList.remove('pg-hover'); }
+  });
+})();
+</script>
 </body>
 </html>"""
 
@@ -1745,6 +1823,7 @@ def view_page(slug: str):
 
     html = inject_photo(html, data)
     html = inject_music_player(html, data)
+    html = inject_cursor_fx(html)
     return inject_action_bar(html)
 
 
@@ -1998,6 +2077,50 @@ def inject_action_bar(html: str) -> str:
     if "</body>" in html:
         return html.replace("</body>", ACTION_BAR_BLOCK + "</body>", 1)
     return html + ACTION_BAR_BLOCK
+
+
+CURSOR_FX_RESULT = r"""
+<style>
+@media (hover: hover) and (pointer: fine) {
+  body, a, button { cursor: none; }
+  .pg-cursor-dot { position: fixed; top: 0; left: 0; width: 7px; height: 7px; border-radius: 50%; background: currentColor; pointer-events: none; z-index: 9999; transform: translate(-50%,-50%); mix-blend-mode: difference; }
+  .pg-cursor-ring { position: fixed; top: 0; left: 0; width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid currentColor; opacity: 0.55; pointer-events: none; z-index: 9998; transform: translate(-50%,-50%); transition: width 0.2s ease, height 0.2s ease, opacity 0.2s ease; mix-blend-mode: difference; }
+  .pg-cursor-ring.pg-hover { width: 52px; height: 52px; opacity: 0.9; }
+  .pg-cursor-dot.pg-hover { transform: translate(-50%,-50%) scale(0); }
+}
+</style>
+<script>
+(function () {
+  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+  var dot = document.createElement('div'); dot.className = 'pg-cursor-dot';
+  var ring = document.createElement('div'); ring.className = 'pg-cursor-ring';
+  document.body.appendChild(dot);
+  document.body.appendChild(ring);
+  var mx = -100, my = -100, rx = -100, ry = -100;
+  document.addEventListener('mousemove', function (e) {
+    mx = e.clientX; my = e.clientY;
+    dot.style.left = mx + 'px'; dot.style.top = my + 'px';
+  });
+  (function loop() {
+    rx += (mx - rx) * 0.2; ry += (my - ry) * 0.2;
+    ring.style.left = rx + 'px'; ring.style.top = ry + 'px';
+    requestAnimationFrame(loop);
+  })();
+  document.addEventListener('mouseover', function (e) {
+    if (e.target.closest('a, button')) { ring.classList.add('pg-hover'); dot.classList.add('pg-hover'); }
+  });
+  document.addEventListener('mouseout', function (e) {
+    if (e.target.closest('a, button')) { ring.classList.remove('pg-hover'); dot.classList.remove('pg-hover'); }
+  });
+})();
+</script>
+"""
+
+
+def inject_cursor_fx(html: str) -> str:
+    if "</body>" in html:
+        return html.replace("</body>", CURSOR_FX_RESULT + "</body>", 1)
+    return html + CURSOR_FX_RESULT
 
 
 def render_toy_page(data: dict) -> str:
