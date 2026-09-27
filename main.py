@@ -591,35 +591,8 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
   </svg>
 </div>
 
-<section id="screen-explain" class="screen active">
+<section id="screen-templates" class="screen active">
   <a class="btn-back" href="/" style="text-decoration:none;">&larr; Bosh sahifa</a>
-  <div class="explain-wrap">
-    <div class="explain-slide" data-index="0">
-      <span class="explain-num">01</span>
-      <h2>Turini tanlaysiz</h2>
-      <p>To'y, tug'ilgan kun, eslatma va yana boshqa 7 xil noma turidan birini tanlaysiz.</p>
-    </div>
-    <div class="explain-slide" data-index="1">
-      <span class="explain-num">02</span>
-      <h2>Ma'lumot kiritasiz</h2>
-      <p>Ism, sana, manzil kabi kerakli ma'lumotlarni oddiy formaga yozasiz.</p>
-    </div>
-    <div class="explain-slide" data-index="2">
-      <span class="explain-num">03</span>
-      <h2>Link olasiz</h2>
-      <p>Tayyor chiroyli sahifangiz uchun link yaratiladi — uni istalgan joyga yuborasiz.</p>
-    </div>
-    <div class="explain-dots">
-      <span class="dot-i active" data-i="0"></span>
-      <span class="dot-i" data-i="1"></span>
-      <span class="dot-i" data-i="2"></span>
-    </div>
-    <button class="btn-primary" id="btn-continue">Davom etish</button>
-  </div>
-</section>
-
-<section id="screen-templates" class="screen">
-  <button class="btn-back" data-back="screen-explain">&larr; Orqaga</button>
   <div class="templates-wrap">
     <p class="eyebrow">1-qadam</p>
     <h2 class="section-title">Qanday noma kerak?</h2>
@@ -976,24 +949,6 @@ function showScreen(id) {
 // --- Orqaga tugmalari ---
 document.querySelectorAll('.btn-back[data-back]').forEach(btn => {
   btn.addEventListener('click', () => showScreen(btn.dataset.back));
-});
-
-const slides = document.querySelectorAll('.explain-slide');
-const dots = document.querySelectorAll('.dot-i');
-let currentSlide = 0;
-
-function setSlide(i) {
-  slides.forEach(s => s.classList.remove('active'));
-  dots.forEach(d => d.classList.remove('active'));
-  slides[i].classList.add('active');
-  dots[i].classList.add('active');
-  currentSlide = i;
-}
-setSlide(0);
-
-document.getElementById('btn-continue').addEventListener('click', () => {
-  if (currentSlide < slides.length - 1) { setSlide(currentSlide + 1); }
-  else { showScreen('screen-templates'); }
 });
 
 const tplCards = document.querySelectorAll('.tpl-card');
