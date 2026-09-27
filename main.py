@@ -12,8 +12,8 @@ GitHub'ga yuklaganda sizga faqat 2 ta fayl kerak:
 SQLite baza fayli (nomalar.db) birinchi ishga tushganda avtomatik yaratiladi.
 """
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from pydantic import BaseModel
 import sqlite3
 import os
@@ -21,6 +21,7 @@ import re
 import json
 import random
 import string
+import secrets
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "nomalar.db")
@@ -61,6 +62,36 @@ def init_db():
             value TEXT
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phone TEXT UNIQUE NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS visitors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phone TEXT UNIQUE NOT NULL,
+            is_blocked INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            contact TEXT NOT NULL,
+            matn TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    # Boshlang'ich admin raqamlari (agar hali qo'shilmagan bo'lsa)
+    for seed_phone in ("998951275154", "998332845154"):
+        cur.execute(
+            "INSERT OR IGNORE INTO admins (phone) VALUES (?)", (seed_phone,)
+        )
     conn.commit()
     conn.close()
 
@@ -109,7 +140,31 @@ ICON_SVG = {
     "sparkle": '<path d="M12 2v6M12 16v6M2 12h6M16 12h6M5 5l4 4M15 15l4 4M19 5l-4 4M9 15l-4 4"/>',
     "globe": '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',
     "coin": '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 9.5c0-1.4 1.3-2.5 3-2.5s3 1.1 3 2.5-1.3 2-3 2.5c-1.7.5-3 1.1-3 2.5s1.3 2.5 3 2.5 3-1.1 3-2.5"/>',
+    "instagram": '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none"/>',
+    "telegram": '<path d="m3 11.5 17-7-3 16-6-4.5-3 3-1-5.5Z"/><path d="m9.5 13 8.5-7.5"/>',
+    "phone": '<path d="M4 4h4l2 5-2.5 2a11 11 0 0 0 5.5 5.5l2-2.5 5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 2 6a2 2 0 0 1 2-2Z"/>',
+    "user": '<circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.5-6 8-6s8 2 8 6"/>',
+    "chat": '<path d="M4 4h16v12H8l-4 4V4Z"/>',
+    "block": '<circle cx="12" cy="12" r="9"/><path d="m6 6 12 12"/>',
+    "toggle": '<rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="8" cy="12" r="3"/>',
 }
+
+SOCIAL_LINKS = [
+    ("instagram", "https://www.instagram.com/shahzodbek.dev?stkn=M2o4dnp4b3pzZnV5", "Instagram"),
+    ("telegram", "https://t.me/shzodbekcoderdev", "Telegram"),
+]
+
+
+def social_links_html(size: int = 18) -> str:
+    icons = ""
+    for key, url, label in SOCIAL_LINKS:
+        svg_inner = ICON_SVG[key]
+        icons += (
+            f'<a href="{url}" target="_blank" rel="noopener" class="social-link" aria-label="{label}">'
+            f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+            f'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{svg_inner}</svg></a>'
+        )
+    return f'<div class="social-links">{icons}</div>'
 
 
 def icon_badge(icon_key: str, size: int = 22, bg: str = "rgba(47,111,237,0.1)", color: str = "var(--accent1)") -> str:
@@ -198,6 +253,9 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .step-card p { font-size: 14px; color: var(--ink-dim); line-height: 1.65; margin: 0 0 8px; }
 .step-card ul { margin: 8px 0 0; padding-left: 18px; color: var(--ink-dim); font-size: 13.5px; line-height: 1.7; }
 .site-footer-static { text-align: center; font-size: 12.5px; color: var(--ink-dim); padding: 24px 20px 36px; border-top: 1px solid var(--glass-border); margin-top: 20px; }
+.social-links { display: flex; justify-content: center; gap: 12px; margin-bottom: 12px; }
+.social-links a.social-link { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: #fff; border: 1px solid var(--glass-border); color: var(--ink-dim); text-decoration: none; }
+.social-links a.social-link:hover { color: var(--accent1); border-color: var(--accent1); }
 @media (max-width: 480px) {
   .page-wrap { padding: 28px 16px 60px; }
   .hero { padding: 24px 10px 6px; }
@@ -209,9 +267,18 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 """
 
 
-def nav_html(active: str = "") -> str:
+def nav_html(active: str = "", is_admin: bool = False) -> str:
     def cls(name):
         return "active" if name == active else ""
+
+    auth_link = (
+        '<a href="/panel" class="btn-outline" style="padding:9px 18px;font-size:13px;">Panel</a>'
+        if is_admin
+        else '<a href="/kirish" class="btn-outline" style="padding:9px 18px;font-size:13px;">Kirish</a>'
+    )
+    auth_link_mobile = (
+        '<a href="/panel">Boshqaruv paneli</a>' if is_admin else '<a href="/kirish">Kirish</a>'
+    )
 
     return f"""<nav class="navbar">
   <a href="/" class="nav-logo">Nomalar<span class="dot">.</span>uz</a>
@@ -220,8 +287,10 @@ def nav_html(active: str = "") -> str:
     <li><a href="/turlar" class="{cls('turlar')}">Noma turlari</a></li>
     <li><a href="/qanday-ishlaydi" class="{cls('qanday')}">Qanday ishlaydi?</a></li>
     <li><a href="/afzalliklar" class="{cls('afzallik')}">Afzalliklar</a></li>
+    <li><a href="/aloqa" class="{cls('aloqa')}">Aloqa</a></li>
   </ul>
   <div class="nav-right">
+    {auth_link}
     <a class="btn-login" href="/yaratish">Noma yaratish</a>
     <button type="button" class="nav-burger" id="nav-burger-btn" aria-label="Menyu">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
@@ -232,6 +301,8 @@ def nav_html(active: str = "") -> str:
     <a href="/turlar" class="{cls('turlar')}">Noma turlari</a>
     <a href="/qanday-ishlaydi" class="{cls('qanday')}">Qanday ishlaydi?</a>
     <a href="/afzalliklar" class="{cls('afzallik')}">Afzalliklar</a>
+    <a href="/aloqa" class="{cls('aloqa')}">Aloqa</a>
+    {auth_link_mobile}
     <a href="/yaratish" class="btn-login">Noma yaratish</a>
   </div>
 </nav>
@@ -288,7 +359,74 @@ CURSOR_FX = r"""
 """
 
 
-def page_shell(title: str, active: str, body: str) -> str:
+AUTH_COOKIE = "nomalar_auth"
+
+
+def normalize_phone(phone: str) -> str:
+    return re.sub(r"\D", "", phone or "")
+
+
+def get_auth_phone(request: Request) -> str:
+    return normalize_phone(request.cookies.get(AUTH_COOKIE, ""))
+
+
+def is_admin_phone(phone: str) -> bool:
+    if not phone:
+        return False
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM admins WHERE phone = ?", (phone,))
+    row = cur.fetchone()
+    conn.close()
+    return bool(row)
+
+
+def request_is_admin(request: Request) -> bool:
+    return is_admin_phone(get_auth_phone(request))
+
+
+def is_site_paused() -> bool:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM settings WHERE key = 'site_paused'")
+    row = cur.fetchone()
+    conn.close()
+    return bool(row and row[0] == "1")
+
+
+MAINTENANCE_HTML = """<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Texnik ishlar — Nomalar.uz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: linear-gradient(160deg, #EAF2FF 0%, #F3F8FF 50%, #FFFFFF 100%); color: #16233B; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  .box { max-width: 420px; }
+  h1 { font-family: 'Sora', sans-serif; font-size: 26px; margin: 0 0 12px; }
+  p { color: #64748B; font-size: 15px; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div style="font-size:38px;margin-bottom:14px;">🛠️</div>
+    <h1>Sayt vaqtincha texnik ishlar tufayli ishlamayapti</h1>
+    <p>Iltimos, birozdan so'ng qayta urinib ko'ring.</p>
+  </div>
+</body>
+</html>"""
+
+
+def maintenance_or_none():
+    if is_site_paused():
+        return HTMLResponse(MAINTENANCE_HTML)
+    return None
+
+
+def page_shell(title: str, active: str, body: str, is_admin: bool = False) -> str:
     return f"""<!DOCTYPE html>
 <html lang="uz">
 <head>
@@ -301,16 +439,22 @@ def page_shell(title: str, active: str, body: str) -> str:
 <style>{SITE_STYLE}</style>
 </head>
 <body>
-{nav_html(active)}
+{nav_html(active, is_admin)}
 {body}
-<p class="site-footer-static">Yaratuvchi: Ilhomjonov Shahzodbek</p>
+<footer class="site-footer-static">
+{social_links_html()}
+<p style="margin:0;">Yaratuvchi: Ilhomjonov Shahzodbek</p>
+</footer>
 {CURSOR_FX}
 </body>
 </html>"""
 
 
 @app.get("/turlar", response_class=HTMLResponse)
-def turlar_page():
+def turlar_page(request: Request):
+    maint = maintenance_or_none()
+    if maint:
+        return maint
     cards = ""
     for t in TEMPLATE_META:
         cards += f"""<div class="tpl-page-card">
@@ -330,11 +474,14 @@ def turlar_page():
     {cards}
   </div>
 </div>"""
-    return page_shell("Noma turlari — Nomalar.uz", "turlar", body)
+    return page_shell("Noma turlari — Nomalar.uz", "turlar", body, request_is_admin(request))
 
 
 @app.get("/qanday-ishlaydi", response_class=HTMLResponse)
-def qanday_ishlaydi_page():
+def qanday_ishlaydi_page(request: Request):
+    maint = maintenance_or_none()
+    if maint:
+        return maint
     body = f"""<div class="page-wrap">
   <div class="page-header">
     <p class="eyebrow">3 oddiy qadam</p>
@@ -380,11 +527,14 @@ def qanday_ishlaydi_page():
     <a class="btn-login" href="/yaratish">Hoziroq boshlash &rarr;</a>
   </div>
 </div>"""
-    return page_shell("Qanday ishlaydi? — Nomalar.uz", "qanday", body)
+    return page_shell("Qanday ishlaydi? — Nomalar.uz", "qanday", body, request_is_admin(request))
 
 
 @app.get("/afzalliklar", response_class=HTMLResponse)
-def afzalliklar_page():
+def afzalliklar_page(request: Request):
+    maint = maintenance_or_none()
+    if maint:
+        return maint
     items = [
         ("sparkle", "Zamonaviy dizayn", "Har bir shablon alohida ishlab chiqilgan, o'ziga xos rang va uslubda — andoza his qilinmaydi."),
         ("coin", "100% bepul", "Hech qanday to'lov, obuna yoki yashirin cheklov yo'q — barcha shablonlar hammaga ochiq."),
@@ -411,11 +561,14 @@ def afzalliklar_page():
     {cards}
   </div>
 </div>"""
-    return page_shell("Afzalliklar — Nomalar.uz", "afzallik", body)
+    return page_shell("Afzalliklar — Nomalar.uz", "afzallik", body, request_is_admin(request))
 
 
 @app.get("/", response_class=HTMLResponse)
-def landing_home():
+def landing_home(request: Request):
+    maint = maintenance_or_none()
+    if maint:
+        return maint
     mini_cards = ""
     for t in TEMPLATE_META[:8]:
         mini_cards += f"""<div class="tpl-page-card" style="text-align:center;align-items:center;">
@@ -446,7 +599,409 @@ def landing_home():
     <a class="btn-outline" href="/turlar">Barcha turlarni ko'rish &rarr;</a>
   </div>
 </div>"""
-    return page_shell("Nomalar.uz — muhim daqiqalaringiz uchun noma", "home", body)
+    return page_shell("Nomalar.uz — muhim daqiqalaringiz uchun noma", "home", body, request_is_admin(request))
+
+
+# ============================================================
+#  ALOQA SAHIFASI
+# ============================================================
+
+class AloqaForm(BaseModel):
+    ism: str
+    kontakt: str
+    matn: str
+
+
+@app.get("/aloqa", response_class=HTMLResponse)
+def aloqa_page(request: Request):
+    maint = maintenance_or_none()
+    if maint:
+        return maint
+    body = f"""<div class="page-wrap" style="max-width:640px;">
+  <div class="page-header">
+    <p class="eyebrow">Biz bilan bog'laning</p>
+    <h1 class="section-title">Aloqa</h1>
+    <p class="section-sub">Savol, taklif yoki hamkorlik uchun xabar qoldiring — imkon qadar tez javob beramiz.</p>
+  </div>
+  <div style="display:flex;justify-content:center;margin-bottom:32px;">
+    {social_links_html(22)}
+  </div>
+  <form id="aloqa-form" class="app-form" style="background:#fff;border:1px solid var(--glass-border);border-radius:20px;padding:28px;box-shadow:0 4px 16px rgba(47,111,237,0.07);">
+    <label>Ismingiz<input type="text" name="ism" placeholder="Ism Familiya" required></label>
+    <label>Telefon yoki email<input type="text" name="kontakt" placeholder="+998 90 123 45 67" required></label>
+    <label>Xabar<textarea name="matn" rows="5" placeholder="Xabaringizni shu yerga yozing..." required></textarea></label>
+    <button type="submit" class="btn-login" style="width:100%;border:none;">Yuborish</button>
+    <p id="aloqa-status" style="text-align:center;font-size:13px;color:var(--ink-dim);min-height:16px;margin:0;"></p>
+  </form>
+</div>
+<style>
+#aloqa-form input, #aloqa-form textarea {{ width:100%; max-width:100%; box-sizing:border-box; font-family:'Inter',sans-serif; font-size:14px; background:var(--bg2); border:1px solid var(--glass-border); border-radius:12px; padding:11px 13px; color:var(--ink); }}
+#aloqa-form label {{ display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--ink-dim); font-weight:500; }}
+</style>
+<script>
+document.getElementById('aloqa-form').addEventListener('submit', async (e) => {{
+  e.preventDefault();
+  const statusEl = document.getElementById('aloqa-status');
+  const data = Object.fromEntries(new FormData(e.target).entries());
+  statusEl.textContent = 'Yuborilmoqda...';
+  try {{
+    const res = await fetch('/api/aloqa', {{ method: 'POST', headers: {{'Content-Type':'application/json'}}, body: JSON.stringify(data) }});
+    if (res.ok) {{ statusEl.textContent = 'Xabaringiz yuborildi, rahmat!'; e.target.reset(); }}
+    else {{ statusEl.textContent = 'Xatolik yuz berdi, qayta urinib ko\\'ring.'; }}
+  }} catch (err) {{ statusEl.textContent = 'Internet aloqasida muammo.'; }}
+}});
+</script>"""
+    return page_shell("Aloqa — Nomalar.uz", "aloqa", body, request_is_admin(request))
+
+
+@app.post("/api/aloqa")
+def submit_aloqa(form: AloqaForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not form.ism.strip() or not form.kontakt.strip() or not form.matn.strip():
+        raise HTTPException(status_code=400, detail="Barcha maydonlarni to'ldiring")
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO messages (name, contact, matn) VALUES (?, ?, ?)",
+        (form.ism.strip(), form.kontakt.strip(), form.matn.strip()),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+# ============================================================
+#  KIRISH (TELEFON RAQAM ORQALI)
+# ============================================================
+
+class KirishForm(BaseModel):
+    telefon: str
+
+
+@app.get("/kirish", response_class=HTMLResponse)
+def kirish_page(request: Request):
+    if request_is_admin(request):
+        return RedirectResponse("/panel")
+    body = """<div class="page-wrap" style="max-width:420px;padding-top:60px;">
+  <div class="page-header">
+    <p class="eyebrow">Xush kelibsiz</p>
+    <h1 class="section-title">Kirish</h1>
+    <p class="section-sub">Davom etish uchun telefon raqamingizni kiriting.</p>
+  </div>
+  <form id="kirish-form" style="background:#fff;border:1px solid var(--glass-border);border-radius:20px;padding:26px;box-shadow:0 4px 16px rgba(47,111,237,0.07);display:flex;flex-direction:column;gap:14px;">
+    <label style="font-size:13px;color:var(--ink-dim);font-weight:500;display:flex;flex-direction:column;gap:6px;">
+      Telefon raqam
+      <input type="tel" name="telefon" placeholder="+998 90 123 45 67" required
+        style="width:100%;box-sizing:border-box;font-size:14px;background:var(--bg2);border:1px solid var(--glass-border);border-radius:12px;padding:12px 14px;color:var(--ink);">
+    </label>
+    <button type="submit" class="btn-login" style="width:100%;border:none;">Kirish</button>
+    <p id="kirish-status" style="text-align:center;font-size:13px;color:#E1477A;min-height:16px;margin:0;"></p>
+  </form>
+</div>
+<script>
+document.getElementById('kirish-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const statusEl = document.getElementById('kirish-status');
+  const data = Object.fromEntries(new FormData(e.target).entries());
+  statusEl.textContent = '';
+  try {
+    const res = await fetch('/api/kirish', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    const result = await res.json();
+    if (res.ok) { window.location.href = result.redirect; }
+    else { statusEl.textContent = result.detail || 'Xatolik yuz berdi.'; }
+  } catch (err) { statusEl.textContent = 'Internet aloqasida muammo.'; }
+});
+</script>"""
+    return page_shell("Kirish — Nomalar.uz", "", body, False)
+
+
+@app.post("/api/kirish")
+def submit_kirish(form: KirishForm):
+    phone = normalize_phone(form.telefon)
+    if len(phone) < 7:
+        raise HTTPException(status_code=400, detail="Telefon raqam noto'g'ri")
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    if is_admin_phone(phone):
+        conn.close()
+        resp = JSONResponse({"ok": True, "admin": True, "redirect": "/panel"})
+        resp.set_cookie(AUTH_COOKIE, phone, max_age=60 * 60 * 24 * 90, httponly=True, samesite="lax")
+        return resp
+
+    cur.execute("SELECT is_blocked FROM visitors WHERE phone = ?", (phone,))
+    row = cur.fetchone()
+    if row and row[0]:
+        conn.close()
+        raise HTTPException(status_code=403, detail="Siz bloklangansiz")
+
+    if row:
+        cur.execute(
+            "UPDATE visitors SET last_seen_at = CURRENT_TIMESTAMP WHERE phone = ?", (phone,)
+        )
+    else:
+        cur.execute("INSERT INTO visitors (phone) VALUES (?)", (phone,))
+    conn.commit()
+    conn.close()
+
+    resp = JSONResponse({"ok": True, "admin": False, "redirect": "/"})
+    resp.set_cookie(AUTH_COOKIE, phone, max_age=60 * 60 * 24 * 90, httponly=True, samesite="lax")
+    return resp
+
+
+@app.post("/api/chiqish")
+def logout(request: Request):
+    resp = RedirectResponse("/", status_code=303)
+    resp.delete_cookie(AUTH_COOKIE)
+    return resp
+
+
+# ============================================================
+#  BOSHQARUV PANELI (FAQAT ADMIN UCHUN)
+# ============================================================
+
+class AdminAddForm(BaseModel):
+    telefon: str
+
+
+class VisitorActionForm(BaseModel):
+    phone: str
+
+
+@app.get("/panel", response_class=HTMLResponse)
+def panel_page(request: Request):
+    if not request_is_admin(request):
+        return RedirectResponse("/kirish")
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(*) FROM pages")
+    total_pages = cur.fetchone()[0]
+
+    cur.execute("SELECT template_type, COUNT(*) FROM pages GROUP BY template_type ORDER BY COUNT(*) DESC")
+    by_type = cur.fetchall()
+
+    cur.execute("SELECT slug, template_type, created_at FROM pages ORDER BY id DESC LIMIT 30")
+    recent_pages = cur.fetchall()
+
+    cur.execute("SELECT name, contact, matn, created_at FROM messages ORDER BY id DESC LIMIT 30")
+    recent_messages = cur.fetchall()
+
+    cur.execute("SELECT phone, is_blocked, created_at, last_seen_at FROM visitors ORDER BY id DESC")
+    visitors = cur.fetchall()
+
+    cur.execute("SELECT phone FROM admins ORDER BY id ASC")
+    admins = [r[0] for r in cur.fetchall()]
+
+    paused = is_site_paused()
+    conn.close()
+
+    active_count = sum(1 for v in visitors if not v[1])
+    blocked_count = sum(1 for v in visitors if v[1])
+
+    type_rows = "".join(
+        f'<div class="panel-stat"><span>{t}</span><strong>{c}</strong></div>' for t, c in by_type
+    ) or '<p style="color:var(--ink-dim);font-size:13px;">Hali yaratilgan noma yo\'q.</p>'
+
+    pages_rows = "".join(
+        f'<tr><td><a href="/n/{slug}" target="_blank">{slug}</a></td><td>{ttype}</td><td>{created}</td></tr>'
+        for slug, ttype, created in recent_pages
+    ) or '<tr><td colspan="3" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
+
+    messages_rows = "".join(
+        f'<tr><td>{escape_html(name)}</td><td>{escape_html(contact)}</td><td>{escape_html(matn)}</td><td>{created}</td></tr>'
+        for name, contact, matn, created in recent_messages
+    ) or '<tr><td colspan="4" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
+
+    visitor_rows = ""
+    for phone, blocked, created, last_seen in visitors:
+        badge = '<span style="color:#E1477A;font-weight:600;">Bloklangan</span>' if blocked else '<span style="color:#1E9E5A;font-weight:600;">Aktiv</span>'
+        action_label = "Blokdan chiqarish" if blocked else "Bloklash"
+        visitor_rows += f"""<tr>
+  <td>{phone}</td><td>{badge}</td><td>{created}</td><td>{last_seen}</td>
+  <td><button type="button" class="btn-outline panel-mini-btn" data-phone="{phone}" data-blocked="{1 if blocked else 0}" onclick="toggleBlock(this)">{action_label}</button></td>
+</tr>"""
+    if not visitors:
+        visitor_rows = '<tr><td colspan="5" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
+
+    admin_rows = "".join(
+        f'<tr><td>{a}</td><td><button type="button" class="btn-outline panel-mini-btn" onclick="removeAdmin(\'{a}\')" {"disabled" if len(admins) <= 1 else ""}>O\'chirish</button></td></tr>'
+        for a in admins
+    )
+
+    body = f"""<div class="page-wrap" style="max-width:920px;">
+  <div class="page-header" style="text-align:left;">
+    <p class="eyebrow">Admin</p>
+    <h1 class="section-title" style="margin-bottom:4px;">Boshqaruv paneli</h1>
+    <p class="section-sub" style="margin:0;">Sayt statistikasi va boshqaruv — faqat sizga ko'rinadi.</p>
+  </div>
+
+  <div class="benefit-grid" style="margin-bottom:32px;">
+    <div class="benefit-card"><h3 style="margin-top:0;">Jami nomalar</h3><p style="font-size:28px;font-weight:800;color:var(--accent1);margin:0;">{total_pages}</p></div>
+    <div class="benefit-card"><h3 style="margin-top:0;">Aktiv raqamlar</h3><p style="font-size:28px;font-weight:800;color:#1E9E5A;margin:0;">{active_count}</p></div>
+    <div class="benefit-card"><h3 style="margin-top:0;">Bloklangan</h3><p style="font-size:28px;font-weight:800;color:#E1477A;margin:0;">{blocked_count}</p></div>
+  </div>
+
+  <div class="benefit-card" style="margin-bottom:28px;">
+    <h3 style="margin-top:0;">Sayt holati</h3>
+    <p style="font-size:13.5px;color:var(--ink-dim);margin:0 0 12px;">Sayt hozir: <strong style="color:{'#E1477A' if paused else '#1E9E5A'};">{'To\'xtatilgan' if paused else 'Faol'}</strong></p>
+    <button type="button" class="btn-login" style="border:none;" onclick="togglePause()">{'Saytni ishga tushirish' if paused else 'Saytni to\'xtatish'}</button>
+  </div>
+
+  <div class="benefit-card" style="margin-bottom:28px;">
+    <h3 style="margin-top:0;">Noma turlari bo'yicha</h3>
+    <div style="display:flex;flex-direction:column;gap:6px;">{type_rows}</div>
+  </div>
+
+  <div class="benefit-card" style="margin-bottom:28px;overflow-x:auto;">
+    <h3 style="margin-top:0;">Yaratilgan nomalar (oxirgi 30 ta)</h3>
+    <table class="panel-table"><thead><tr><th>Slug</th><th>Turi</th><th>Sana</th></tr></thead><tbody>{pages_rows}</tbody></table>
+  </div>
+
+  <div class="benefit-card" style="margin-bottom:28px;overflow-x:auto;">
+    <h3 style="margin-top:0;">Aloqa xabarlari (oxirgi 30 ta)</h3>
+    <table class="panel-table"><thead><tr><th>Ism</th><th>Kontakt</th><th>Xabar</th><th>Sana</th></tr></thead><tbody>{messages_rows}</tbody></table>
+  </div>
+
+  <div class="benefit-card" style="margin-bottom:28px;overflow-x:auto;">
+    <h3 style="margin-top:0;">Kirgan raqamlar</h3>
+    <table class="panel-table"><thead><tr><th>Raqam</th><th>Holati</th><th>Birinchi kirgan</th><th>Oxirgi faollik</th><th></th></tr></thead><tbody>{visitor_rows}</tbody></table>
+  </div>
+
+  <div class="benefit-card" style="margin-bottom:28px;">
+    <h3 style="margin-top:0;">Adminlar</h3>
+    <table class="panel-table" style="margin-bottom:14px;"><thead><tr><th>Raqam</th><th></th></tr></thead><tbody>{admin_rows}</tbody></table>
+    <form id="add-admin-form" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input type="text" id="new-admin-phone" placeholder="+998 90 123 45 67" required
+        style="flex:1;min-width:160px;font-size:14px;background:var(--bg2);border:1px solid var(--glass-border);border-radius:12px;padding:10px 13px;color:var(--ink);">
+      <button type="submit" class="btn-outline">Yordamchi admin qo'shish</button>
+    </form>
+    <p id="add-admin-status" style="font-size:13px;color:var(--ink-dim);margin:8px 0 0;"></p>
+  </div>
+
+  <form method="post" action="/api/chiqish">
+    <button type="submit" class="btn-outline" style="color:#E1477A;border-color:#E1477A;">Chiqish</button>
+  </form>
+</div>
+<style>
+.panel-stat {{ display:flex; justify-content:space-between; font-size:13.5px; padding:6px 0; border-bottom:1px solid var(--glass-border); }}
+.panel-table {{ width:100%; border-collapse:collapse; font-size:13px; }}
+.panel-table th {{ text-align:left; color:var(--ink-dim); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--glass-border); white-space:nowrap; }}
+.panel-table td {{ padding:6px 8px; border-bottom:1px solid var(--glass-border); vertical-align:top; }}
+.panel-mini-btn {{ padding:6px 12px; font-size:12px; }}
+</style>
+<script>
+async function toggleBlock(btn) {{
+  const phone = btn.dataset.phone;
+  const blocked = btn.dataset.blocked === '1';
+  await fetch(blocked ? '/api/panel/unblock' : '/api/panel/block', {{
+    method: 'POST', headers: {{'Content-Type':'application/json'}}, body: JSON.stringify({{phone}})
+  }});
+  window.location.reload();
+}}
+async function removeAdmin(phone) {{
+  if (!confirm('Bu admin raqamini o\\'chirishni tasdiqlaysizmi?')) return;
+  await fetch('/api/panel/remove-admin', {{
+    method: 'POST', headers: {{'Content-Type':'application/json'}}, body: JSON.stringify({{phone}})
+  }});
+  window.location.reload();
+}}
+async function togglePause() {{
+  await fetch('/api/panel/toggle-pause', {{ method: 'POST' }});
+  window.location.reload();
+}}
+document.getElementById('add-admin-form').addEventListener('submit', async (e) => {{
+  e.preventDefault();
+  const phone = document.getElementById('new-admin-phone').value;
+  const statusEl = document.getElementById('add-admin-status');
+  const res = await fetch('/api/panel/add-admin', {{
+    method: 'POST', headers: {{'Content-Type':'application/json'}}, body: JSON.stringify({{telefon: phone}})
+  }});
+  if (res.ok) {{ window.location.reload(); }}
+  else {{ const r = await res.json(); statusEl.textContent = r.detail || 'Xatolik yuz berdi.'; statusEl.style.color = '#E1477A'; }}
+}});
+</script>"""
+    return page_shell("Boshqaruv paneli — Nomalar.uz", "", body, True)
+
+
+@app.post("/api/panel/block")
+def panel_block(form: VisitorActionForm, request: Request):
+    if not request_is_admin(request):
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    phone = normalize_phone(form.phone)
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("UPDATE visitors SET is_blocked = 1 WHERE phone = ?", (phone,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/panel/unblock")
+def panel_unblock(form: VisitorActionForm, request: Request):
+    if not request_is_admin(request):
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    phone = normalize_phone(form.phone)
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("UPDATE visitors SET is_blocked = 0 WHERE phone = ?", (phone,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/panel/add-admin")
+def panel_add_admin(form: AdminAddForm, request: Request):
+    if not request_is_admin(request):
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    phone = normalize_phone(form.telefon)
+    if len(phone) < 7:
+        raise HTTPException(status_code=400, detail="Telefon raqam noto'g'ri")
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("INSERT OR IGNORE INTO admins (phone) VALUES (?)", (phone,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/panel/remove-admin")
+def panel_remove_admin(form: VisitorActionForm, request: Request):
+    if not request_is_admin(request):
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM admins")
+    total = cur.fetchone()[0]
+    if total <= 1:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Kamida bitta admin qolishi kerak")
+    phone = normalize_phone(form.phone)
+    cur.execute("DELETE FROM admins WHERE phone = ?", (phone,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/panel/toggle-pause")
+def panel_toggle_pause(request: Request):
+    if not request_is_admin(request):
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    paused = is_site_paused()
+    new_value = "0" if paused else "1"
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO settings (key, value) VALUES ('site_paused', ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (new_value,),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True, "paused": new_value == "1"}
 
 
 # ============================================================
@@ -967,6 +1522,14 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
   </div>
 </section>
 
+<div style="position:fixed;bottom:36px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:5;">
+  <a href="https://www.instagram.com/shahzodbek.dev?stkn=M2o4dnp4b3pzZnV5" target="_blank" rel="noopener" style="width:32px;height:32px;border-radius:50%;background:#fff;border:1px solid var(--glass-border);display:flex;align-items:center;justify-content:center;color:var(--ink-dim);text-decoration:none;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none"/></svg>
+  </a>
+  <a href="https://t.me/shzodbekcoderdev" target="_blank" rel="noopener" style="width:32px;height:32px;border-radius:50%;background:#fff;border:1px solid var(--glass-border);display:flex;align-items:center;justify-content:center;color:var(--ink-dim);text-decoration:none;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 11.5 17-7-3 16-6-4.5-3 3-1-5.5Z"/><path d="m9.5 13 8.5-7.5"/></svg>
+  </a>
+</div>
 <p class="site-footer">Yaratuvchi: Ilhomjonov Shahzodbek</p>
 
 <div id="map-modal" class="map-modal">
@@ -1290,6 +1853,9 @@ document.getElementById('btn-copy').addEventListener('click', () => {
 
 @app.get("/yaratish", response_class=HTMLResponse)
 def home():
+    maint = maintenance_or_none()
+    if maint:
+        return maint
     return HOME_PAGE
 
 
@@ -1311,6 +1877,8 @@ class ToyForm(BaseModel):
 
 @app.post("/api/create/toy")
 def create_toy(form: ToyForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.kuyov.strip() or not form.kelin.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1348,6 +1916,8 @@ class BirthdayForm(BaseModel):
 
 @app.post("/api/create/tugilgan-kun")
 def create_birthday(form: BirthdayForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.ism.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1383,6 +1953,8 @@ class ExplanationForm(BaseModel):
 
 @app.post("/api/create/tushuntirish")
 def create_explanation(form: ExplanationForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.sarlavha.strip() or not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1418,6 +1990,8 @@ class ReminderForm(BaseModel):
 
 @app.post("/api/create/eslatma")
 def create_reminder(form: ReminderForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.sarlavha.strip() or not form.kimga.strip() or not form.matn.strip() or not form.muddat or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1454,6 +2028,8 @@ class GuaranteeForm(BaseModel):
 
 @app.post("/api/create/kafolat")
 def create_guarantee(form: GuaranteeForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.mahsulot.strip() or not form.mijoz.strip() or not form.muddat.strip() or not form.sana or not form.beruvchi.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1490,6 +2066,8 @@ class ParentGuaranteeForm(BaseModel):
 
 @app.post("/api/create/ota-ona-kafolat")
 def create_parent_guarantee(form: ParentGuaranteeForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.oquvchi.strip() or not form.maktab.strip() or not form.otaona.strip() or not form.vada.strip() or not form.sana:
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1523,6 +2101,8 @@ class BirthdayGreetingForm(BaseModel):
 
 @app.post("/api/create/tugilgan-kun-tabrik")
 def create_birthday_greeting(form: BirthdayGreetingForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.kimga.strip() or not form.tabrik.strip() or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1559,6 +2139,8 @@ class CradleForm(BaseModel):
 
 @app.post("/api/create/beshik")
 def create_cradle(form: CradleForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.chaqaloq.strip() or not form.otaona.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1595,6 +2177,8 @@ class GraduationForm(BaseModel):
 
 @app.post("/api/create/bitiruv")
 def create_graduation(form: GraduationForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.ism.strip() or not form.muassasa.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1632,6 +2216,8 @@ class OfficialEventForm(BaseModel):
 
 @app.post("/api/create/rasmiy")
 def create_official_event(form: OfficialEventForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.tadbir.strip() or not form.tashkilotchi.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1665,6 +2251,8 @@ class LoveLetterForm(BaseModel):
 
 @app.post("/api/create/sevishganlar")
 def create_love_letter(form: LoveLetterForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1701,6 +2289,8 @@ class VizitkaForm(BaseModel):
 
 @app.post("/api/create/vizitka")
 def create_vizitka(form: VizitkaForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.ism.strip() or not form.lavozim.strip() or not form.telefon.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1737,6 +2327,8 @@ class ResumeForm(BaseModel):
 
 @app.post("/api/create/rezyume")
 def create_resume(form: ResumeForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.ism.strip() or not form.lavozim.strip() or not form.telefon.strip() or not form.tajriba.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1771,6 +2363,8 @@ class ThanksForm(BaseModel):
 
 @app.post("/api/create/minnatdorchilik")
 def create_thanks(form: ThanksForm):
+    if is_site_paused():
+        raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip() or not form.sana:
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
