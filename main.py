@@ -666,7 +666,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
       <label>Kuyov ismi<input type="text" name="kuyov" placeholder="Farhod" required></label>
       <label>Kelin ismi<input type="text" name="kelin" placeholder="Shirin" required></label>
       <div class="row-2">
-        <label>Sana<input type="date" name="sana" required></label>
+        <label>Sana<input type="date" name="sana" min="2024-01-01" max="2035-12-31" required></label>
         <label>Vaqt<input type="time" name="vaqt" required></label>
       </div>
       <label>Manzil<input type="text" name="manzil" placeholder="Toshkent, Navoiy ko'chasi 23" required></label>
@@ -691,7 +691,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
       <label>Kimning tug'ilgan kuni?<input type="text" name="ism" placeholder="Malika" required></label>
       <label>Necha yosh to'ladi (ixtiyoriy)<input type="number" name="yosh" placeholder="18" min="0"></label>
       <div class="row-2">
-        <label>Sana<input type="date" name="sana" required></label>
+        <label>Sana<input type="date" name="sana" min="2024-01-01" max="2035-12-31" required></label>
         <label>Vaqt<input type="time" name="vaqt" required></label>
       </div>
       <label>Manzil<input type="text" name="manzil" placeholder="Toshkent, restoran nomi" required></label>
@@ -718,7 +718,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
       <label>Kimga<input type="text" name="kimga" placeholder="Maktab direktoriga / Bo'lim boshlig'iga" required></label>
       <label>Matn<textarea name="matn" rows="6" placeholder="Xat matnini shu yerga yozing..." required></textarea></label>
       <label>Kimdan (imzo)<input type="text" name="kimdan" placeholder="Ism Familiya" required></label>
-      <label>Sana<input type="date" name="sana" required></label>
+      <label>Sana<input type="date" name="sana" min="2024-01-01" max="2035-12-31" required></label>
       <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
       <p class="form-error" id="form-tushuntirish-error"></p>
     </form>
@@ -735,7 +735,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
       <label>Sarlavha<input type="text" name="sarlavha" placeholder="Muddat yaqinlashmoqda" required></label>
       <label>Kimga<input type="text" name="kimga" placeholder="Hamma xodimlarga" required></label>
       <label>Eslatma matni<textarea name="matn" rows="5" placeholder="Nimani eslatmoqchisiz?" required></textarea></label>
-      <label>Muddat (sana)<input type="date" name="muddat" required></label>
+      <label>Muddat (sana)<input type="date" name="muddat" min="2024-01-01" max="2035-12-31" required></label>
       <label>Kimdan<input type="text" name="kimdan" placeholder="Ism Familiya" required></label>
       <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
       <p class="form-error" id="form-eslatma-error"></p>
@@ -754,7 +754,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
       <label>Mijoz ismi<input type="text" name="mijoz" placeholder="Ism Familiya" required></label>
       <div class="row-2">
         <label>Kafolat muddati<input type="text" name="muddat" placeholder="12 oy" required></label>
-        <label>Berilgan sana<input type="date" name="sana" required></label>
+        <label>Berilgan sana<input type="date" name="sana" min="2024-01-01" max="2035-12-31" required></label>
       </div>
       <label>Shartlar (ixtiyoriy)<textarea name="shartlar" rows="4" placeholder="Kafolat qanday hollarda amal qiladi..."></textarea></label>
       <label>Beruvchi tashkilot/shaxs<input type="text" name="beruvchi" placeholder="Kompaniya yoki ism" required></label>
@@ -776,7 +776,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
       <label>Maktab/muassasa nomi<input type="text" name="maktab" placeholder="12-maktab" required></label>
       <label>Ota-ona ismi<input type="text" name="otaona" placeholder="Ism Familiya" required></label>
       <label>Va'da matni<textarea name="vada" rows="4" placeholder="Farzandim intizomga rioya qilishiga, darslarga muntazam qatnashishiga va'da beraman..." required></textarea></label>
-      <label>Sana<input type="date" name="sana" required></label>
+      <label>Sana<input type="date" name="sana" min="2024-01-01" max="2035-12-31" required></label>
       <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
       <p class="form-error" id="form-ota-ona-kafolat-error"></p>
     </form>
@@ -809,7 +809,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
       <label>Chaqaloq ismi<input type="text" name="chaqaloq" placeholder="Sardor" required></label>
       <label>Ota-ona ismi<input type="text" name="otaona" placeholder="Aziz va Nilufar" required></label>
       <div class="row-2">
-        <label>Marosim sanasi<input type="date" name="sana" required></label>
+        <label>Marosim sanasi<input type="date" name="sana" min="2024-01-01" max="2035-12-31" required></label>
         <label>Vaqt<input type="time" name="vaqt" required></label>
       </div>
       <label>Manzil<input type="text" name="manzil" placeholder="Toshkent, uy manzili" required></label>
@@ -835,7 +835,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
       <label>Bitiruvchi ismi<input type="text" name="ism" placeholder="Sardor Aliyev" required></label>
       <label>Ta'lim muassasasi<input type="text" name="muassasa" placeholder="21-maktab / TATU" required></label>
       <div class="row-2">
-        <label>Marosim sanasi<input type="date" name="sana" required></label>
+        <label>Marosim sanasi<input type="date" name="sana" min="2024-01-01" max="2035-12-31" required></label>
         <label>Vaqt<input type="time" name="vaqt" required></label>
       </div>
       <label>Manzil<input type="text" name="manzil" placeholder="Aktlar zali, manzil" required></label>
@@ -861,7 +861,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
       <label>Tadbir nomi<input type="text" name="tadbir" placeholder="Yillik konferensiya" required></label>
       <label>Tashkilotchi<input type="text" name="tashkilotchi" placeholder="Kompaniya nomi" required></label>
       <div class="row-2">
-        <label>Sana<input type="date" name="sana" required></label>
+        <label>Sana<input type="date" name="sana" min="2024-01-01" max="2035-12-31" required></label>
         <label>Vaqt<input type="time" name="vaqt" required></label>
       </div>
       <label>Manzil<input type="text" name="manzil" placeholder="Konferensiya zali, manzil" required></label>
@@ -944,7 +944,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
       <label>Kimga<input type="text" name="kimga" placeholder="Jamoa a'zosi yoki hamkor ismi" required></label>
       <label>Xat matni<textarea name="matn" rows="5" placeholder="Sizning mehnatingiz va sadoqatingiz uchun minnatdormiz..." required></textarea></label>
       <label>Kimdan<input type="text" name="kimdan" placeholder="Ism Familiya yoki kompaniya" required></label>
-      <label>Sana<input type="date" name="sana" required></label>
+      <label>Sana<input type="date" name="sana" min="2024-01-01" max="2035-12-31" required></label>
       <button type="submit" class="btn-primary" style="width:100%;margin-top:8px;">Noma yaratish</button>
       <p class="form-error" id="form-minnatdorchilik-error"></p>
     </form>
@@ -1161,6 +1161,19 @@ function setupForm(formId, errorId, apiPath) {
     }
   });
 }
+
+// --- Sana maydonida yil noto'g'ri (masalan 6 xonali) kiritilsa, tozalash ---
+document.querySelectorAll('input[type="date"]').forEach((el) => {
+  el.addEventListener('input', () => {
+    const v = el.value;
+    if (v) {
+      const year = v.split('-')[0];
+      if (year.length > 4 || parseInt(year, 10) < 1900 || parseInt(year, 10) > 2100) {
+        el.value = '';
+      }
+    }
+  });
+});
 
 setupForm('form-toy', 'form-toy-error', '/api/create/toy');
 setupForm('form-tugilgan-kun', 'form-tugilgan-kun-error', '/api/create/tugilgan-kun');
