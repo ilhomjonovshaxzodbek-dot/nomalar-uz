@@ -381,8 +381,36 @@ def is_admin_phone(phone: str) -> bool:
     return bool(row)
 
 
+def get_active_admin_phone() -> str:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM settings WHERE key = 'active_admin_phone'")
+    row = cur.fetchone()
+    conn.close()
+    return row[0] if row and row[0] else ""
+
+
+def set_active_admin_phone(phone: str) -> None:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO settings (key, value) VALUES ('active_admin_phone', ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (phone,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def clear_active_admin_phone() -> None:
+    set_active_admin_phone("")
+
+
 def request_is_admin(request: Request) -> bool:
-    return is_admin_phone(get_auth_phone(request))
+    phone = get_auth_phone(request)
+    if not phone or not is_admin_phone(phone):
+        return False
+    return phone == get_active_admin_phone()
 
 
 def is_site_paused() -> bool:
@@ -412,7 +440,11 @@ MAINTENANCE_HTML = """<!DOCTYPE html>
 </head>
 <body>
   <div class="box">
-    <div style="font-size:38px;margin-bottom:14px;">🛠️</div>
+    <div style="margin-bottom:14px;color:#2F6FED;">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto;display:block;">
+        <path d="M14.7 6.3a4 4 0 1 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.1 2.1-2-2 2.1-2.1Z"/>
+      </svg>
+    </div>
     <h1>Sayt vaqtincha texnik ishlar tufayli ishlamayapti</h1>
     <p>Iltimos, birozdan so'ng qayta urinib ko'ring.</p>
   </div>
@@ -677,13 +709,35 @@ def submit_aloqa(form: AloqaForm):
 
 class KirishForm(BaseModel):
     telefon: str
+    next: str = "/"
+
+
+def request_is_authenticated(request: Request) -> bool:
+    phone = get_auth_phone(request)
+    if not phone:
+        return False
+    if is_admin_phone(phone):
+        return True
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT is_blocked FROM visitors WHERE phone = ?", (phone,))
+    row = cur.fetchone()
+    conn.close()
+    return bool(row) and not row[0]
+
+
+def safe_next_path(next_path: str) -> str:
+    if next_path and next_path.startswith("/") and not next_path.startswith("//"):
+        return next_path
+    return "/"
 
 
 @app.get("/kirish", response_class=HTMLResponse)
-def kirish_page(request: Request):
+def kirish_page(request: Request, next: str = "/"):
     if request_is_admin(request):
         return RedirectResponse("/panel")
-    body = """<div class="page-wrap" style="max-width:420px;padding-top:60px;">
+    safe_next = safe_next_path(next)
+    body = f"""<div class="page-wrap" style="max-width:420px;padding-top:60px;">
   <div class="page-header">
     <p class="eyebrow">Xush kelibsiz</p>
     <h1 class="section-title">Kirish</h1>
@@ -695,23 +749,24 @@ def kirish_page(request: Request):
       <input type="tel" name="telefon" placeholder="+998 90 123 45 67" required
         style="width:100%;box-sizing:border-box;font-size:14px;background:var(--bg2);border:1px solid var(--glass-border);border-radius:12px;padding:12px 14px;color:var(--ink);">
     </label>
+    <input type="hidden" name="next" value="{safe_next}">
     <button type="submit" class="btn-login" style="width:100%;border:none;">Kirish</button>
     <p id="kirish-status" style="text-align:center;font-size:13px;color:#E1477A;min-height:16px;margin:0;"></p>
   </form>
 </div>
 <script>
-document.getElementById('kirish-form').addEventListener('submit', async (e) => {
+document.getElementById('kirish-form').addEventListener('submit', async (e) => {{
   e.preventDefault();
   const statusEl = document.getElementById('kirish-status');
   const data = Object.fromEntries(new FormData(e.target).entries());
   statusEl.textContent = '';
-  try {
-    const res = await fetch('/api/kirish', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+  try {{
+    const res = await fetch('/api/kirish', {{ method: 'POST', headers: {{'Content-Type':'application/json'}}, body: JSON.stringify(data) }});
     const result = await res.json();
-    if (res.ok) { window.location.href = result.redirect; }
-    else { statusEl.textContent = result.detail || 'Xatolik yuz berdi.'; }
-  } catch (err) { statusEl.textContent = 'Internet aloqasida muammo.'; }
-});
+    if (res.ok) {{ window.location.href = result.redirect; }}
+    else {{ statusEl.textContent = result.detail || 'Xatolik yuz berdi.'; }}
+  }} catch (err) {{ statusEl.textContent = 'Internet aloqasida muammo.'; }}
+}});
 </script>"""
     return page_shell("Kirish — Nomalar.uz", "", body, False)
 
@@ -722,11 +777,20 @@ def submit_kirish(form: KirishForm):
     if len(phone) < 7:
         raise HTTPException(status_code=400, detail="Telefon raqam noto'g'ri")
 
+    safe_next = safe_next_path(form.next)
+
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
     if is_admin_phone(phone):
         conn.close()
+        active = get_active_admin_phone()
+        if active and active != phone:
+            raise HTTPException(
+                status_code=403,
+                detail="Hozir boshqa admin tizimda. Avval u chiqishi kerak.",
+            )
+        set_active_admin_phone(phone)
         resp = JSONResponse({"ok": True, "admin": True, "redirect": "/panel"})
         resp.set_cookie(AUTH_COOKIE, phone, max_age=60 * 60 * 24 * 90, httponly=True, samesite="lax")
         return resp
@@ -746,13 +810,16 @@ def submit_kirish(form: KirishForm):
     conn.commit()
     conn.close()
 
-    resp = JSONResponse({"ok": True, "admin": False, "redirect": "/"})
+    resp = JSONResponse({"ok": True, "admin": False, "redirect": safe_next})
     resp.set_cookie(AUTH_COOKIE, phone, max_age=60 * 60 * 24 * 90, httponly=True, samesite="lax")
     return resp
 
 
 @app.post("/api/chiqish")
 def logout(request: Request):
+    phone = get_auth_phone(request)
+    if phone and phone == get_active_admin_phone():
+        clear_active_admin_phone()
     resp = RedirectResponse("/", status_code=303)
     resp.delete_cookie(AUTH_COOKIE)
     return resp
@@ -1852,10 +1919,12 @@ document.getElementById('btn-copy').addEventListener('click', () => {
 
 
 @app.get("/yaratish", response_class=HTMLResponse)
-def home():
+def home(request: Request):
     maint = maintenance_or_none()
     if maint:
         return maint
+    if not request_is_authenticated(request):
+        return RedirectResponse("/kirish?next=/yaratish")
     return HOME_PAGE
 
 
@@ -1876,9 +1945,11 @@ class ToyForm(BaseModel):
 
 
 @app.post("/api/create/toy")
-def create_toy(form: ToyForm):
+def create_toy(form: ToyForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.kuyov.strip() or not form.kelin.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1915,9 +1986,11 @@ class BirthdayForm(BaseModel):
 
 
 @app.post("/api/create/tugilgan-kun")
-def create_birthday(form: BirthdayForm):
+def create_birthday(form: BirthdayForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.ism.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1952,9 +2025,11 @@ class ExplanationForm(BaseModel):
 
 
 @app.post("/api/create/tushuntirish")
-def create_explanation(form: ExplanationForm):
+def create_explanation(form: ExplanationForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.sarlavha.strip() or not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -1989,9 +2064,11 @@ class ReminderForm(BaseModel):
 
 
 @app.post("/api/create/eslatma")
-def create_reminder(form: ReminderForm):
+def create_reminder(form: ReminderForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.sarlavha.strip() or not form.kimga.strip() or not form.matn.strip() or not form.muddat or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2027,9 +2104,11 @@ class GuaranteeForm(BaseModel):
 
 
 @app.post("/api/create/kafolat")
-def create_guarantee(form: GuaranteeForm):
+def create_guarantee(form: GuaranteeForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.mahsulot.strip() or not form.mijoz.strip() or not form.muddat.strip() or not form.sana or not form.beruvchi.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2065,9 +2144,11 @@ class ParentGuaranteeForm(BaseModel):
 
 
 @app.post("/api/create/ota-ona-kafolat")
-def create_parent_guarantee(form: ParentGuaranteeForm):
+def create_parent_guarantee(form: ParentGuaranteeForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.oquvchi.strip() or not form.maktab.strip() or not form.otaona.strip() or not form.vada.strip() or not form.sana:
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2100,9 +2181,11 @@ class BirthdayGreetingForm(BaseModel):
 
 
 @app.post("/api/create/tugilgan-kun-tabrik")
-def create_birthday_greeting(form: BirthdayGreetingForm):
+def create_birthday_greeting(form: BirthdayGreetingForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.kimga.strip() or not form.tabrik.strip() or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2138,9 +2221,11 @@ class CradleForm(BaseModel):
 
 
 @app.post("/api/create/beshik")
-def create_cradle(form: CradleForm):
+def create_cradle(form: CradleForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.chaqaloq.strip() or not form.otaona.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2176,9 +2261,11 @@ class GraduationForm(BaseModel):
 
 
 @app.post("/api/create/bitiruv")
-def create_graduation(form: GraduationForm):
+def create_graduation(form: GraduationForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.ism.strip() or not form.muassasa.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2215,9 +2302,11 @@ class OfficialEventForm(BaseModel):
 
 
 @app.post("/api/create/rasmiy")
-def create_official_event(form: OfficialEventForm):
+def create_official_event(form: OfficialEventForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.tadbir.strip() or not form.tashkilotchi.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2250,9 +2339,11 @@ class LoveLetterForm(BaseModel):
 
 
 @app.post("/api/create/sevishganlar")
-def create_love_letter(form: LoveLetterForm):
+def create_love_letter(form: LoveLetterForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2288,9 +2379,11 @@ class VizitkaForm(BaseModel):
 
 
 @app.post("/api/create/vizitka")
-def create_vizitka(form: VizitkaForm):
+def create_vizitka(form: VizitkaForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.ism.strip() or not form.lavozim.strip() or not form.telefon.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2326,9 +2419,11 @@ class ResumeForm(BaseModel):
 
 
 @app.post("/api/create/rezyume")
-def create_resume(form: ResumeForm):
+def create_resume(form: ResumeForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.ism.strip() or not form.lavozim.strip() or not form.telefon.strip() or not form.tajriba.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2362,9 +2457,11 @@ class ThanksForm(BaseModel):
 
 
 @app.post("/api/create/minnatdorchilik")
-def create_thanks(form: ThanksForm):
+def create_thanks(form: ThanksForm, request: Request):
     if is_site_paused():
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
     if not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip() or not form.sana:
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
