@@ -13,7 +13,7 @@ SQLite baza fayli (nomalar.db) birinchi ishga tushganda avtomatik yaratiladi.
 """
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response
 from pydantic import BaseModel
 import sqlite3
 import os
@@ -22,6 +22,8 @@ import json
 import random
 import string
 import secrets
+import base64
+from urllib.parse import quote
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "nomalar.db")
@@ -87,6 +89,23 @@ def init_db():
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phone TEXT UNIQUE NOT NULL,
+            display_name TEXT,
+            username TEXT,
+            avatar BLOB,
+            avatar_mime TEXT,
+            avatar_v INTEGER DEFAULT 0,
+            skipped INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_username "
+        "ON profiles (username) WHERE username IS NOT NULL AND username != ''"
+    )
     # Boshlang'ich admin raqamlari (agar hali qo'shilmagan bo'lsa)
     for seed_phone in ("998951275154", "998332845154"):
         cur.execute(
@@ -207,7 +226,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .navbar { position: sticky; top: 0; left: 0; right: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: 16px 5vw; background: rgba(255,255,255,0.9); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--glass-border); }
 .nav-logo { font-family: 'Sora', sans-serif; font-weight: 800; font-size: 19px; color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 8px; }
 .nav-logo .dot { color: var(--accent1); }
-.nav-links { display: flex; gap: 28px; list-style: none; margin: 0; padding: 0; }
+.nav-links { display: flex; gap: 22px; list-style: none; margin: 0; padding: 0; }
 .nav-links a { color: var(--ink-dim); text-decoration: none; font-size: 14px; font-weight: 500; }
 .nav-links a:hover, .nav-links a.active { color: var(--accent1); }
 .nav-right { display: flex; align-items: center; gap: 14px; }
@@ -256,6 +275,14 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .social-links { display: flex; justify-content: center; gap: 12px; margin-bottom: 12px; }
 .social-links a.social-link { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: #fff; border: 1px solid var(--glass-border); color: var(--ink-dim); text-decoration: none; }
 .social-links a.social-link:hover { color: var(--accent1); border-color: var(--accent1); }
+.nav-profile { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); font-size: 13.5px; font-weight: 600; padding: 4px 14px 4px 4px; border: 1px solid var(--glass-border); border-radius: 999px; background: #fff; }
+.nav-profile:hover { border-color: var(--accent1); }
+.nav-profile .nm { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-avatar { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; background: var(--accent-grad); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+.mobile-menu a.mm-profile { display: flex; align-items: center; gap: 10px; }
+.mm-logout { width: 100%; text-align: left; background: none; border: none; font-family: 'Inter', sans-serif; font-size: 14.5px; font-weight: 600; color: #E1477A; padding: 12px 14px; border-radius: 10px; cursor: pointer; }
+.mm-logout:hover { background: rgba(225,71,122,0.08); }
+@media (max-width: 780px) { .nav-profile { display: none; } }
 @media (max-width: 480px) {
   .page-wrap { padding: 28px 16px 60px; }
   .hero { padding: 24px 10px 6px; }
@@ -267,18 +294,102 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 """
 
 
-def nav_html(active: str = "", is_admin: bool = False) -> str:
+def esc_attr(text: str) -> str:
+    return (
+        (text or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def get_profile(phone: str):
+    if not phone:
+        return None
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, display_name, username, avatar IS NOT NULL, avatar_v, skipped "
+        "FROM profiles WHERE phone = ?",
+        (phone,),
+    )
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "display_name": row[1] or "",
+        "username": row[2] or "",
+        "has_avatar": bool(row[3]),
+        "avatar_v": row[4] or 0,
+        "skipped": bool(row[5]),
+    }
+
+
+def ensure_profile(phone: str) -> None:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("INSERT OR IGNORE INTO profiles (phone) VALUES (?)", (phone,))
+    conn.commit()
+    conn.close()
+
+
+def avatar_url(profile) -> str:
+    if profile and profile.get("has_avatar"):
+        return f"/avatar/{profile['id']}?v={profile['avatar_v']}"
+    return ""
+
+
+def nav_user(request: Request) -> dict:
+    """Navbar uchun joriy foydalanuvchi ma'lumoti."""
+    if not request_is_authenticated(request):
+        return {"authenticated": False, "is_admin": False}
+    phone = get_auth_phone(request)
+    prof = get_profile(phone) or {}
+    return {
+        "authenticated": True,
+        "is_admin": request_is_admin(request),
+        "name": prof.get("display_name", ""),
+        "username": prof.get("username", ""),
+        "avatar": avatar_url(prof),
+    }
+
+
+def nav_html(active: str = "", user=None) -> str:
     def cls(name):
         return "active" if name == active else ""
 
-    auth_link = (
-        '<a href="/panel" class="btn-outline" style="padding:9px 18px;font-size:13px;">Panel</a>'
-        if is_admin
-        else '<a href="/kirish" class="btn-outline" style="padding:9px 18px;font-size:13px;">Kirish</a>'
-    )
-    auth_link_mobile = (
-        '<a href="/panel">Boshqaruv paneli</a>' if is_admin else '<a href="/kirish">Kirish</a>'
-    )
+    if isinstance(user, bool) or user is None:
+        user = {"authenticated": bool(user), "is_admin": bool(user)}
+
+    def avatar_html():
+        if user.get("avatar"):
+            return f'<img class="nav-avatar" src="{esc_attr(user["avatar"])}" alt="">'
+        initial = esc_attr((user.get("name") or "P")[:1].upper())
+        return f'<span class="nav-avatar">{initial}</span>'
+
+    shown_name = esc_attr(user.get("name") or "Profil")
+
+    if user.get("authenticated"):
+        panel_btn = (
+            '<a href="/panel" class="btn-outline" style="padding:9px 18px;font-size:13px;">Panel</a>'
+            if user.get("is_admin")
+            else ""
+        )
+        auth_link = (
+            panel_btn
+            + f'<a href="/profil" class="nav-profile">{avatar_html()}<span class="nm">{shown_name}</span></a>'
+        )
+        auth_link_mobile = (
+            f'<a href="/profil" class="mm-profile">{avatar_html()}<span>{shown_name}</span></a>'
+            + ('<a href="/panel">Boshqaruv paneli</a>' if user.get("is_admin") else "")
+            + '<form method="post" action="/api/chiqish" style="margin:0;"><button type="submit" class="mm-logout">Chiqish</button></form>'
+        )
+    else:
+        auth_link = '<a href="/kirish" class="btn-outline" style="padding:9px 18px;font-size:13px;">Kirish</a>'
+        auth_link_mobile = '<a href="/kirish">Kirish</a>'
 
     return f"""<nav class="navbar">
   <a href="/" class="nav-logo">Nomalar<span class="dot">.</span>uz</a>
@@ -458,7 +569,7 @@ def maintenance_or_none():
     return None
 
 
-def page_shell(title: str, active: str, body: str, is_admin: bool = False) -> str:
+def page_shell(title: str, active: str, body: str, user=False) -> str:
     return f"""<!DOCTYPE html>
 <html lang="uz">
 <head>
@@ -471,7 +582,7 @@ def page_shell(title: str, active: str, body: str, is_admin: bool = False) -> st
 <style>{SITE_STYLE}</style>
 </head>
 <body>
-{nav_html(active, is_admin)}
+{nav_html(active, user)}
 {body}
 <footer class="site-footer-static">
 {social_links_html()}
@@ -506,7 +617,7 @@ def turlar_page(request: Request):
     {cards}
   </div>
 </div>"""
-    return page_shell("Noma turlari — Nomalar.uz", "turlar", body, request_is_admin(request))
+    return page_shell("Noma turlari — Nomalar.uz", "turlar", body, nav_user(request))
 
 
 @app.get("/qanday-ishlaydi", response_class=HTMLResponse)
@@ -559,7 +670,7 @@ def qanday_ishlaydi_page(request: Request):
     <a class="btn-login" href="/yaratish">Hoziroq boshlash &rarr;</a>
   </div>
 </div>"""
-    return page_shell("Qanday ishlaydi? — Nomalar.uz", "qanday", body, request_is_admin(request))
+    return page_shell("Qanday ishlaydi? — Nomalar.uz", "qanday", body, nav_user(request))
 
 
 @app.get("/afzalliklar", response_class=HTMLResponse)
@@ -593,7 +704,7 @@ def afzalliklar_page(request: Request):
     {cards}
   </div>
 </div>"""
-    return page_shell("Afzalliklar — Nomalar.uz", "afzallik", body, request_is_admin(request))
+    return page_shell("Afzalliklar — Nomalar.uz", "afzallik", body, nav_user(request))
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -631,7 +742,7 @@ def landing_home(request: Request):
     <a class="btn-outline" href="/turlar">Barcha turlarni ko'rish &rarr;</a>
   </div>
 </div>"""
-    return page_shell("Nomalar.uz — muhim daqiqalaringiz uchun noma", "home", body, request_is_admin(request))
+    return page_shell("Nomalar.uz — muhim daqiqalaringiz uchun noma", "home", body, nav_user(request))
 
 
 # ============================================================
@@ -683,7 +794,7 @@ document.getElementById('aloqa-form').addEventListener('submit', async (e) => {{
   }} catch (err) {{ statusEl.textContent = 'Internet aloqasida muammo.'; }}
 }});
 </script>"""
-    return page_shell("Aloqa — Nomalar.uz", "aloqa", body, request_is_admin(request))
+    return page_shell("Aloqa — Nomalar.uz", "aloqa", body, nav_user(request))
 
 
 @app.post("/api/aloqa")
@@ -737,6 +848,8 @@ def kirish_page(request: Request, next: str = "/"):
     if request_is_admin(request):
         return RedirectResponse("/panel")
     safe_next = safe_next_path(next)
+    if request_is_authenticated(request):
+        return RedirectResponse(safe_next)
     body = f"""<div class="page-wrap" style="max-width:420px;padding-top:60px;">
   <div class="page-header">
     <p class="eyebrow">Xush kelibsiz</p>
@@ -791,7 +904,8 @@ def submit_kirish(form: KirishForm):
                 detail="Hozir boshqa admin tizimda. Avval u chiqishi kerak.",
             )
         set_active_admin_phone(phone)
-        resp = JSONResponse({"ok": True, "admin": True, "redirect": "/panel"})
+        ensure_profile(phone)
+        resp = JSONResponse({"ok": True, "admin": True, "redirect": profile_redirect(phone, "/panel")})
         resp.set_cookie(AUTH_COOKIE, phone, max_age=60 * 60 * 24 * 90, httponly=True, samesite="lax")
         return resp
 
@@ -810,9 +924,303 @@ def submit_kirish(form: KirishForm):
     conn.commit()
     conn.close()
 
-    resp = JSONResponse({"ok": True, "admin": False, "redirect": safe_next})
+    ensure_profile(phone)
+    resp = JSONResponse({"ok": True, "admin": False, "redirect": profile_redirect(phone, safe_next)})
     resp.set_cookie(AUTH_COOKIE, phone, max_age=60 * 60 * 24 * 90, httponly=True, samesite="lax")
     return resp
+
+
+def profile_redirect(phone: str, target: str) -> str:
+    prof = get_profile(phone)
+    if prof and not prof["display_name"] and not prof["skipped"]:
+        return "/profil?welcome=1&next=" + quote(target, safe="")
+    return target
+
+
+# ============================================================
+#  PROFIL (RASM, NAME, USERNAME)
+# ============================================================
+
+RESERVED_USERNAMES = {"admin", "administrator", "nomalar", "support", "moderator", "panel", "root", "system"}
+
+
+class ProfilForm(BaseModel):
+    name: str
+    username: str
+    avatar: str = ""
+    remove_avatar: bool = False
+
+
+def detect_image_mime(data: bytes) -> str:
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return ""
+
+
+PROFIL_TEMPLATE = """<div class="page-wrap" style="max-width:480px;padding-top:40px;">
+  <div class="page-header">
+    <p class="eyebrow">%%EYEBROW%%</p>
+    <h1 class="section-title">%%HEADING%%</h1>
+    <p class="section-sub">%%SUB%%</p>
+  </div>
+  <div class="pf-card">
+    <div class="pf-avatar-row">
+      <div class="pf-avatar" id="pf-avatar">%%AVATAR%%</div>
+      <div class="pf-avatar-actions">
+        <label class="btn-outline pf-btn" for="pf-file">Rasm tanlash</label>
+        <input type="file" id="pf-file" accept="image/*" style="display:none;">
+        <button type="button" class="btn-outline pf-btn" id="pf-remove" style="%%REMOVE_STYLE%%">Olib tashlash</button>
+      </div>
+    </div>
+    <label class="pf-label">Name
+      <input type="text" id="pf-name" maxlength="30" value="%%NAME%%" placeholder="Ismingiz">
+    </label>
+    <label class="pf-label">Username
+      <span class="pf-user"><span class="pf-at">@</span><input type="text" id="pf-username" maxlength="20" value="%%USERNAME%%" placeholder="username" autocapitalize="none" autocomplete="off"></span>
+    </label>
+    <p class="pf-hint">Username: 3-20 belgi, lotin harflari, raqam va _ . Telefon raqamingiz (%%PHONE%%) boshqalarga ko'rinmaydi.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button type="button" class="btn-login" id="pf-save" style="border:none;flex:1;">Saqlash</button>
+      %%SKIP_BTN%%
+    </div>
+    <p id="pf-status" class="pf-status"></p>
+  </div>
+  <form method="post" action="/api/chiqish" style="text-align:center;margin-top:18px;">
+    <button type="submit" class="btn-outline" style="color:#E1477A;border-color:#E1477A;">Chiqish</button>
+  </form>
+</div>
+<style>
+.pf-card { background:#fff; border:1px solid var(--glass-border); border-radius:20px; padding:24px; box-shadow:0 4px 16px rgba(47,111,237,0.07); display:flex; flex-direction:column; gap:16px; }
+.pf-avatar-row { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.pf-avatar { width:92px; height:92px; border-radius:50%; overflow:hidden; background:var(--accent-grad); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Sora',sans-serif; font-weight:800; font-size:34px; flex-shrink:0; }
+.pf-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+.pf-avatar-actions { display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+.pf-btn { padding:9px 18px; font-size:13px; cursor:pointer; }
+.pf-label { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--ink-dim); font-weight:500; }
+.pf-label input { width:100%; box-sizing:border-box; font-family:'Inter',sans-serif; font-size:14px; background:var(--bg2); border:1px solid var(--glass-border); border-radius:12px; padding:11px 13px; color:var(--ink); }
+.pf-user { display:flex; align-items:center; background:var(--bg2); border:1px solid var(--glass-border); border-radius:12px; }
+.pf-user .pf-at { padding-left:13px; color:var(--ink-dim); font-size:14px; }
+.pf-user input { border:none; background:transparent; border-radius:12px; }
+.pf-user input:focus { outline:none; }
+.pf-hint { font-size:12.5px; color:var(--ink-dim); margin:0; line-height:1.5; }
+.pf-status { text-align:center; font-size:13px; color:#E1477A; min-height:16px; margin:0; }
+</style>
+<script>
+(function () {
+  var WELCOME = %%WELCOME%%;
+  var NEXT = "%%NEXT%%";
+  var INITIAL = "%%INITIAL%%";
+  var avatarData = "";
+  var removeAvatar = false;
+  var box = document.getElementById('pf-avatar');
+  var statusEl = document.getElementById('pf-status');
+  var removeBtn = document.getElementById('pf-remove');
+
+  function setStatus(msg, ok) { statusEl.textContent = msg; statusEl.style.color = ok ? '#1E9E5A' : '#E1477A'; }
+
+  function fileToAvatar(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function () {
+        var size = 256;
+        var c = document.createElement('canvas');
+        c.width = size; c.height = size;
+        var ctx = c.getContext('2d');
+        var s = Math.min(img.width, img.height);
+        ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('format')); };
+      img.src = url;
+    });
+  }
+
+  document.getElementById('pf-file').addEventListener('change', function (e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    fileToAvatar(file).then(function (data) {
+      avatarData = data; removeAvatar = false;
+      box.innerHTML = '<img src="' + data + '" alt="">';
+      removeBtn.style.display = '';
+    }).catch(function () { setStatus("Bu rasm formatini o'qib bo'lmadi. JPG yoki PNG tanlang.", false); });
+  });
+
+  removeBtn.addEventListener('click', function () {
+    avatarData = ""; removeAvatar = true;
+    box.textContent = INITIAL;
+    removeBtn.style.display = 'none';
+  });
+
+  document.getElementById('pf-username').addEventListener('input', function (e) {
+    e.target.value = e.target.value.toLowerCase().replace(/^@/, '').replace(/[^a-z0-9_]/g, '');
+  });
+
+  document.getElementById('pf-save').addEventListener('click', function () {
+    setStatus('', true);
+    fetch('/api/profil', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: document.getElementById('pf-name').value,
+        username: document.getElementById('pf-username').value,
+        avatar: avatarData, remove_avatar: removeAvatar
+      })
+    }).then(function (res) {
+      if (res.status === 401) { window.location.href = '/kirish?next=/profil'; return null; }
+      return res.json().then(function (r) { return { ok: res.ok, r: r }; });
+    }).then(function (out) {
+      if (!out) return;
+      if (out.ok) {
+        if (WELCOME) { window.location.href = NEXT; } else { setStatus('Saqlandi', true); setTimeout(function () { window.location.reload(); }, 600); }
+      } else { setStatus(out.r.detail || 'Xatolik yuz berdi.', false); }
+    }).catch(function () { setStatus('Internet aloqasida muammo.', false); });
+  });
+
+  var skip = document.getElementById('pf-skip');
+  if (skip) {
+    skip.addEventListener('click', function () {
+      fetch('/api/profil/skip', { method: 'POST' }).then(function () { window.location.href = NEXT; });
+    });
+  }
+})();
+</script>"""
+
+
+@app.get("/profil", response_class=HTMLResponse)
+def profil_page(request: Request, welcome: int = 0, next: str = "/"):
+    if not request_is_authenticated(request):
+        return RedirectResponse("/kirish?next=/profil")
+    phone = get_auth_phone(request)
+    ensure_profile(phone)
+    prof = get_profile(phone) or {}
+    safe_next = safe_next_path(next)
+    name = prof.get("display_name", "")
+    avatar = avatar_url(prof)
+    initial = (name[:1] or "P").upper()
+    avatar_inner = (
+        f'<img src="{esc_attr(avatar)}" alt="">' if avatar else esc_attr(initial)
+    )
+    masked = "+" + phone[:3] + " " + "*" * max(len(phone) - 5, 0) + phone[-2:]
+    is_welcome = bool(welcome)
+    skip_btn = (
+        '<button type="button" class="btn-outline" id="pf-skip" style="flex:0 0 auto;">O\'tkazib yuborish</button>'
+        if is_welcome
+        else ""
+    )
+    body = (
+        PROFIL_TEMPLATE
+        .replace("%%EYEBROW%%", "Xush kelibsiz" if is_welcome else "Sizning akkauntingiz")
+        .replace("%%HEADING%%", "Profilingizni to'ldiring" if is_welcome else "Profil")
+        .replace("%%SUB%%", "Rasm, name va username chatda ko'rinadi. Xohlasangiz, keyinroq ham to'ldirishingiz mumkin." if is_welcome else "Ma'lumotlaringizni shu yerdan o'zgartiring.")
+        .replace("%%AVATAR%%", avatar_inner)
+        .replace("%%REMOVE_STYLE%%", "" if avatar else "display:none;")
+        .replace("%%NAME%%", esc_attr(name))
+        .replace("%%USERNAME%%", esc_attr(prof.get("username", "")))
+        .replace("%%PHONE%%", masked)
+        .replace("%%SKIP_BTN%%", skip_btn)
+        .replace("%%WELCOME%%", "true" if is_welcome else "false")
+        .replace("%%NEXT%%", safe_next.replace("\\", "").replace('"', ""))
+        .replace("%%INITIAL%%", esc_attr(initial))
+    )
+    return page_shell("Profil — Nomalar.uz", "", body, nav_user(request))
+
+
+@app.post("/api/profil")
+def save_profil(form: ProfilForm, request: Request):
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval tizimga kiring")
+    phone = get_auth_phone(request)
+
+    name = re.sub(r"\s+", " ", form.name or "").strip()
+    name = "".join(ch for ch in name if ch.isprintable())
+    if not (2 <= len(name) <= 30):
+        raise HTTPException(status_code=400, detail="Name 2 dan 30 gacha belgidan iborat bo'lsin")
+
+    username = (form.username or "").strip().lstrip("@").lower()
+    if not re.fullmatch(r"[a-z0-9_]{3,20}", username):
+        raise HTTPException(status_code=400, detail="Username 3-20 belgi: lotin harflari, raqam va _")
+    if username in RESERVED_USERNAMES:
+        raise HTTPException(status_code=400, detail="Bu username band")
+
+    avatar_bytes = None
+    mime = ""
+    if form.avatar:
+        m = re.match(r"data:image/(?:jpeg|png|webp);base64,(.+)$", form.avatar, re.S)
+        if not m:
+            raise HTTPException(status_code=400, detail="Rasm formati noto'g'ri")
+        try:
+            avatar_bytes = base64.b64decode(m.group(1), validate=True)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Rasm formati noto'g'ri")
+        if len(avatar_bytes) > 300 * 1024:
+            raise HTTPException(status_code=400, detail="Rasm juda katta")
+        mime = detect_image_mime(avatar_bytes)
+        if not mime:
+            raise HTTPException(status_code=400, detail="Rasm formati noto'g'ri")
+
+    ensure_profile(phone)
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    try:
+        if avatar_bytes is not None:
+            cur.execute(
+                "UPDATE profiles SET display_name = ?, username = ?, avatar = ?, avatar_mime = ?, "
+                "avatar_v = avatar_v + 1, updated_at = CURRENT_TIMESTAMP WHERE phone = ?",
+                (name, username, avatar_bytes, mime, phone),
+            )
+        elif form.remove_avatar:
+            cur.execute(
+                "UPDATE profiles SET display_name = ?, username = ?, avatar = NULL, avatar_mime = NULL, "
+                "avatar_v = avatar_v + 1, updated_at = CURRENT_TIMESTAMP WHERE phone = ?",
+                (name, username, phone),
+            )
+        else:
+            cur.execute(
+                "UPDATE profiles SET display_name = ?, username = ?, "
+                "updated_at = CURRENT_TIMESTAMP WHERE phone = ?",
+                (name, username, phone),
+            )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Bu username band, boshqasini tanlang")
+    conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/profil/skip")
+def skip_profil(request: Request):
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval tizimga kiring")
+    phone = get_auth_phone(request)
+    ensure_profile(phone)
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("UPDATE profiles SET skipped = 1 WHERE phone = ?", (phone,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.get("/avatar/{pid}")
+def get_avatar(pid: int):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT avatar, avatar_mime FROM profiles WHERE id = ?", (pid,))
+    row = cur.fetchone()
+    conn.close()
+    if not row or not row[0]:
+        raise HTTPException(status_code=404, detail="Rasm yo'q")
+    return Response(
+        content=bytes(row[0]),
+        media_type=row[1] or "image/jpeg",
+        headers={"Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @app.post("/api/chiqish")
@@ -857,7 +1265,10 @@ def panel_page(request: Request):
     cur.execute("SELECT name, contact, matn, created_at FROM messages ORDER BY id DESC LIMIT 30")
     recent_messages = cur.fetchall()
 
-    cur.execute("SELECT phone, is_blocked, created_at, last_seen_at FROM visitors ORDER BY id DESC")
+    cur.execute(
+        "SELECT v.phone, v.is_blocked, v.created_at, v.last_seen_at, p.display_name, p.username "
+        "FROM visitors v LEFT JOIN profiles p ON p.phone = v.phone ORDER BY v.id DESC"
+    )
     visitors = cur.fetchall()
 
     cur.execute("SELECT phone FROM admins ORDER BY id ASC")
@@ -884,15 +1295,16 @@ def panel_page(request: Request):
     ) or '<tr><td colspan="4" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
 
     visitor_rows = ""
-    for phone, blocked, created, last_seen in visitors:
+    for phone, blocked, created, last_seen, dname, uname in visitors:
+        label = escape_html(dname or "-") + (f" (@{escape_html(uname)})" if uname else "")
         badge = '<span style="color:#E1477A;font-weight:600;">Bloklangan</span>' if blocked else '<span style="color:#1E9E5A;font-weight:600;">Aktiv</span>'
         action_label = "Blokdan chiqarish" if blocked else "Bloklash"
         visitor_rows += f"""<tr>
-  <td>{phone}</td><td>{badge}</td><td>{created}</td><td>{last_seen}</td>
+  <td>{phone}</td><td>{label}</td><td>{badge}</td><td>{created}</td><td>{last_seen}</td>
   <td><button type="button" class="btn-outline panel-mini-btn" data-phone="{phone}" data-blocked="{1 if blocked else 0}" onclick="toggleBlock(this)">{action_label}</button></td>
 </tr>"""
     if not visitors:
-        visitor_rows = '<tr><td colspan="5" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
+        visitor_rows = '<tr><td colspan="6" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
 
     admin_rows = "".join(
         f'<tr><td>{a}</td><td><button type="button" class="btn-outline panel-mini-btn" onclick="removeAdmin(\'{a}\')" {"disabled" if len(admins) <= 1 else ""}>O\'chirish</button></td></tr>'
@@ -935,7 +1347,7 @@ def panel_page(request: Request):
 
   <div class="benefit-card" style="margin-bottom:28px;overflow-x:auto;">
     <h3 style="margin-top:0;">Kirgan raqamlar</h3>
-    <table class="panel-table"><thead><tr><th>Raqam</th><th>Holati</th><th>Birinchi kirgan</th><th>Oxirgi faollik</th><th></th></tr></thead><tbody>{visitor_rows}</tbody></table>
+    <table class="panel-table"><thead><tr><th>Raqam</th><th>Name</th><th>Holati</th><th>Birinchi kirgan</th><th>Oxirgi faollik</th><th></th></tr></thead><tbody>{visitor_rows}</tbody></table>
   </div>
 
   <div class="benefit-card" style="margin-bottom:28px;">
@@ -991,7 +1403,7 @@ document.getElementById('add-admin-form').addEventListener('submit', async (e) =
   else {{ const r = await res.json(); statusEl.textContent = r.detail || 'Xatolik yuz berdi.'; statusEl.style.color = '#E1477A'; }}
 }});
 </script>"""
-    return page_shell("Boshqaruv paneli — Nomalar.uz", "", body, True)
+    return page_shell("Boshqaruv paneli — Nomalar.uz", "", body, nav_user(request))
 
 
 @app.post("/api/panel/block")
