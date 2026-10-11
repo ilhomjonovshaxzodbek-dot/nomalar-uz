@@ -23,6 +23,8 @@ import random
 import string
 import secrets
 import base64
+import time
+from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -106,6 +108,42 @@ def init_db():
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_username "
         "ON profiles (username) WHERE username IS NOT NULL AND username != ''"
     )
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS usage_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phone TEXT,
+            device_id TEXT,
+            ip TEXT,
+            ts INTEGER NOT NULL
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_usage_phone ON usage_log (phone, ts)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_usage_device ON usage_log (device_id, ts)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_usage_ip ON usage_log (ip, ts)")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phone TEXT UNIQUE NOT NULL,
+            tier TEXT NOT NULL,
+            expires_at INTEGER NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tier_features (
+            tier TEXT NOT NULL,
+            feature TEXT NOT NULL,
+            PRIMARY KEY (tier, feature)
+        )
+    """)
+    cur.execute("SELECT 1 FROM settings WHERE key = 'tier_features_seeded'")
+    if not cur.fetchone():
+        for seed_tier in ("plus", "pro", "ultra"):
+            cur.execute(
+                "INSERT OR IGNORE INTO tier_features (tier, feature) VALUES (?, 'unlimited_notes')",
+                (seed_tier,),
+            )
+        cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('tier_features_seeded', '1')")
     # Boshlang'ich admin raqamlari (agar hali qo'shilmagan bo'lsa)
     for seed_phone in ("998951275154", "998332845154"):
         cur.execute(
@@ -275,6 +313,10 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .social-links { display: flex; justify-content: center; gap: 12px; margin-bottom: 12px; }
 .social-links a.social-link { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: #fff; border: 1px solid var(--glass-border); color: var(--ink-dim); text-decoration: none; }
 .social-links a.social-link:hover { color: var(--accent1); border-color: var(--accent1); }
+.price-big { font-family: 'Sora', sans-serif; font-size: 30px; font-weight: 800; color: var(--accent1); margin: 6px 0 0; }
+.price-period { font-size: 13px; color: var(--ink-dim); margin: 0 0 4px; min-height: 18px; }
+.price-card ul { list-style: none; padding: 0; margin: 14px 0 18px; display: flex; flex-direction: column; gap: 9px; font-size: 13.5px; color: var(--ink-dim); }
+.price-card li:before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent1); margin-right: 10px; vertical-align: middle; }
 .nav-profile { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); font-size: 13.5px; font-weight: 600; padding: 4px 14px 4px 4px; border: 1px solid var(--glass-border); border-radius: 999px; background: #fff; }
 .nav-profile:hover { border-color: var(--accent1); }
 .nav-profile .nm { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -398,6 +440,7 @@ def nav_html(active: str = "", user=None) -> str:
     <li><a href="/turlar" class="{cls('turlar')}">Noma turlari</a></li>
     <li><a href="/qanday-ishlaydi" class="{cls('qanday')}">Qanday ishlaydi?</a></li>
     <li><a href="/afzalliklar" class="{cls('afzallik')}">Afzalliklar</a></li>
+    <li><a href="/tariflar" class="{cls('tariflar')}">Tariflar</a></li>
     <li><a href="/aloqa" class="{cls('aloqa')}">Aloqa</a></li>
   </ul>
   <div class="nav-right">
@@ -412,6 +455,7 @@ def nav_html(active: str = "", user=None) -> str:
     <a href="/turlar" class="{cls('turlar')}">Noma turlari</a>
     <a href="/qanday-ishlaydi" class="{cls('qanday')}">Qanday ishlaydi?</a>
     <a href="/afzalliklar" class="{cls('afzallik')}">Afzalliklar</a>
+    <a href="/tariflar" class="{cls('tariflar')}">Tariflar</a>
     <a href="/aloqa" class="{cls('aloqa')}">Aloqa</a>
     {auth_link_mobile}
     <a href="/yaratish" class="btn-login">Noma yaratish</a>
@@ -567,6 +611,228 @@ def maintenance_or_none():
     if is_site_paused():
         return HTMLResponse(MAINTENANCE_HTML)
     return None
+
+
+# ============================================================
+#  LIMIT, TARIFLAR VA IMKONIYATLAR
+# ============================================================
+
+TIERS = {
+    "plus": {"name": "Plus", "price": "$1.99", "period": "1 oy", "days": 30},
+    "pro": {"name": "Pro", "price": "$4.99", "period": "1 oy", "days": 30},
+    "ultra": {"name": "Ultra", "price": "$49.99", "period": "4 oy", "days": 120},
+}
+
+# Yangi imkoniyat qo'shilganda shu yerga yoziladi, panelda o'zi paydo bo'ladi
+FEATURES = {
+    "unlimited_notes": "Cheksiz noma yaratish",
+}
+
+DEFAULT_LIMIT_COUNT = 3
+DEFAULT_LIMIT_HOURS = 4
+
+
+def get_setting(key: str, default: str = "") -> str:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = cur.fetchone()
+    conn.close()
+    return row[0] if row and row[0] not in (None, "") else default
+
+
+def set_setting(key: str, value: str) -> None:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO settings (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_limit_config():
+    try:
+        count = int(get_setting("free_limit_count", str(DEFAULT_LIMIT_COUNT)))
+    except ValueError:
+        count = DEFAULT_LIMIT_COUNT
+    try:
+        hours = int(get_setting("free_limit_hours", str(DEFAULT_LIMIT_HOURS)))
+    except ValueError:
+        hours = DEFAULT_LIMIT_HOURS
+    return max(1, min(count, 100)), max(1, min(hours, 72))
+
+
+def get_tier_features(tier: str) -> set:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT feature FROM tier_features WHERE tier = ?", (tier,))
+    rows = {r[0] for r in cur.fetchall()}
+    conn.close()
+    return rows
+
+
+def fmt_ts(ts: int) -> str:
+    return datetime.fromtimestamp(ts, timezone(timedelta(hours=5))).strftime("%Y-%m-%d %H:%M")
+
+
+def get_client_ip(request: Request) -> str:
+    real = request.headers.get("x-real-ip", "").strip()
+    if real:
+        return real
+    fwd = request.headers.get("x-forwarded-for", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
+def get_device_id(request: Request) -> str:
+    raw = request.headers.get("x-device-id") or request.cookies.get("nomalar_dev") or ""
+    return re.sub(r"[^A-Za-z0-9_-]", "", raw)[:64]
+
+
+def get_active_subscription(phone: str):
+    if not phone:
+        return None
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT tier, expires_at FROM subscriptions WHERE phone = ? AND expires_at > ?",
+        (phone, int(time.time())),
+    )
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {"tier": row[0], "expires_at": row[1]}
+
+
+def compute_limit_state(request: Request) -> dict:
+    now = int(time.time())
+    count, hours = get_limit_config()
+    window = hours * 3600
+    phone = get_auth_phone(request)
+    base = {"limit": count, "window_hours": hours}
+
+    if phone and is_admin_phone(phone):
+        return {**base, "premium": True, "unlimited": True, "tier": "admin", "tier_name": "Admin",
+                "limited": False, "used": 0, "remaining": None, "retry_at": 0, "seconds": 0, "sub_key": "admin"}
+
+    sub = get_active_subscription(phone)
+    tier = sub["tier"] if sub else "free"
+    tier_name = TIERS.get(tier, {}).get("name", "Bepul")
+    if sub and "unlimited_notes" in get_tier_features(tier):
+        return {**base, "premium": True, "unlimited": True, "tier": tier, "tier_name": tier_name,
+                "limited": False, "used": 0, "remaining": None, "retry_at": 0, "seconds": 0,
+                "sub_key": f"{tier}-{sub['expires_at']}"}
+
+    device = get_device_id(request)
+    ip = get_client_ip(request)
+    checks = []
+    if phone:
+        checks.append(("phone", phone, count, True))
+    if device:
+        checks.append(("device_id", device, count, True))
+    if ip:
+        checks.append(("ip", ip, max(12, count * 4), False))
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    used = 0
+    retry_at = 0
+    for col, val, limit, show in checks:
+        cur.execute(
+            f"SELECT ts FROM usage_log WHERE {col} = ? AND ts > ? ORDER BY ts ASC",
+            (val, now - window),
+        )
+        times = [r[0] for r in cur.fetchall()]
+        if show:
+            used = max(used, len(times))
+        if len(times) >= limit:
+            retry_at = max(retry_at, times[len(times) - limit] + window)
+    conn.close()
+
+    limited = retry_at > now
+    return {**base, "premium": bool(sub), "unlimited": False, "tier": tier, "tier_name": tier_name,
+            "limited": limited, "used": min(used, count),
+            "remaining": 0 if limited else max(count - used, 0),
+            "retry_at": retry_at if limited else 0,
+            "seconds": max(retry_at - now, 0) if limited else 0, "sub_key": ""}
+
+
+def check_limit(request: Request):
+    st = compute_limit_state(request)
+    if st["limited"]:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Sayt uxlashga yotdi", "limited": True,
+                     "retry_at": st["retry_at"], "seconds": st["seconds"]},
+        )
+    return None
+
+
+def log_usage(request: Request) -> None:
+    now = int(time.time())
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO usage_log (phone, device_id, ip, ts) VALUES (?, ?, ?, ?)",
+        (get_auth_phone(request), get_device_id(request), get_client_ip(request), now),
+    )
+    cur.execute("DELETE FROM usage_log WHERE ts < ?", (now - 4 * 86400,))
+    conn.commit()
+    conn.close()
+
+
+@app.get("/api/limit-status")
+def limit_status(request: Request):
+    return compute_limit_state(request)
+
+
+@app.get("/tariflar", response_class=HTMLResponse)
+def tariflar_page(request: Request):
+    maint = maintenance_or_none()
+    if maint:
+        return maint
+    count, hours = get_limit_config()
+    sub = get_active_subscription(get_auth_phone(request)) if request_is_authenticated(request) else None
+
+    banner = ""
+    if sub:
+        banner = (
+            '<div class="benefit-card" style="margin-bottom:22px;text-align:center;">'
+            f'Sizning tarifingiz: <strong>{TIERS.get(sub["tier"], {}).get("name", sub["tier"])}</strong>, '
+            f'{fmt_ts(sub["expires_at"])} gacha amal qiladi.</div>'
+        )
+
+    cards = (
+        '<div class="benefit-card price-card"><h3>Bepul</h3><p class="price-big">0</p><p class="price-period">doimiy</p>'
+        f'<ul><li>Har {hours} soatda {count} ta noma</li><li>Barcha 14 ta shablon</li></ul>'
+        '<a class="btn-login" href="/yaratish">Boshlash</a></div>'
+    )
+    for key, t in TIERS.items():
+        enabled = get_tier_features(key)
+        items = "".join(f"<li>{label}</li>" for fkey, label in FEATURES.items() if fkey in enabled)
+        cards += (
+            f'<div class="benefit-card price-card"><h3>{t["name"]}</h3>'
+            f'<p class="price-big">{t["price"]}</p><p class="price-period">{t["period"]}</p>'
+            f'<ul>{items}<li>Barcha 14 ta shablon</li></ul>'
+            '<a class="btn-outline" href="/aloqa">Aloqa orqali olish</a></div>'
+        )
+
+    body = f"""<div class="page-wrap">
+  <div class="page-header">
+    <p class="eyebrow">Tariflar</p>
+    <h1 class="section-title">O'zingizga mosini tanlang</h1>
+    <p class="section-sub">Bepul tarifda ham barcha shablonlar ochiq. Limitni olib tashlamoqchi bo'lsangiz, tarif oling.</p>
+  </div>
+  {banner}
+  <div class="benefit-grid">{cards}</div>
+  <p class="section-sub" style="margin-top:26px;font-size:13.5px;">To'lov hozircha qo'lda qabul qilinadi: "Aloqa" sahifasi yoki Telegram orqali yozing, to'lovdan keyin tarif telefon raqamingizga faollashtiriladi. Avtomatik to'lov keyinroq qo'shiladi.</p>
+</div>"""
+    return page_shell("Tariflar — Nomalar.uz", "tariflar", body, nav_user(request))
 
 
 def page_shell(title: str, active: str, body: str, user=False) -> str:
@@ -1245,6 +1511,96 @@ class VisitorActionForm(BaseModel):
     phone: str
 
 
+PANEL_PREMIUM_TEMPLATE = """
+  <div class="benefit-card" style="margin-bottom:28px;overflow-x:auto;">
+    <h3 style="margin-top:0;">Tarif imkoniyatlari</h3>
+    <p style="font-size:13px;color:var(--ink-dim);margin:0 0 12px;">Belgilangan imkoniyat o'sha tarifga kiradi. O'zgarish darhol ishlaydi.</p>
+    <table class="panel-table" style="margin-bottom:12px;">
+      <thead><tr><th>Imkoniyat</th>%%TIER_HEADERS%%</tr></thead>
+      <tbody>%%FEATURE_ROWS%%</tbody>
+    </table>
+    <button type="button" class="btn-login" style="border:none;" id="pm-save-features">Saqlash</button>
+    <span id="pm-features-status" style="font-size:13px;margin-left:10px;"></span>
+  </div>
+
+  <div class="benefit-card" style="margin-bottom:28px;">
+    <h3 style="margin-top:0;">Bepul limit</h3>
+    <p style="font-size:13px;color:var(--ink-dim);margin:0 0 12px;">Bepul foydalanuvchi shu muddat ichida shuncha noma yarata oladi.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <input type="number" id="pm-limit-count" min="1" max="100" value="%%LIMIT_COUNT%%" style="width:80px;" class="pm-input">
+      <span style="font-size:13px;color:var(--ink-dim);">ta noma, har</span>
+      <input type="number" id="pm-limit-hours" min="1" max="72" value="%%LIMIT_HOURS%%" style="width:80px;" class="pm-input">
+      <span style="font-size:13px;color:var(--ink-dim);">soatda</span>
+      <button type="button" class="btn-outline" id="pm-save-limit">Saqlash</button>
+    </div>
+    <p id="pm-limit-status" style="font-size:13px;margin:8px 0 0;"></p>
+  </div>
+
+  <div class="benefit-card" style="margin-bottom:28px;overflow-x:auto;">
+    <h3 style="margin-top:0;">Premium berish</h3>
+    <form id="pm-sub-form" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+      <input type="text" id="pm-sub-phone" placeholder="+998 90 123 45 67" required class="pm-input" style="flex:1;min-width:160px;">
+      <select id="pm-sub-tier" class="pm-input">%%TIER_OPTIONS%%</select>
+      <input type="number" id="pm-sub-days" min="1" max="3650" class="pm-input" style="width:90px;" required>
+      <span style="font-size:13px;color:var(--ink-dim);align-self:center;">kun</span>
+      <button type="submit" class="btn-login" style="border:none;">Berish</button>
+    </form>
+    <p id="pm-sub-status" style="font-size:13px;margin:0 0 10px;"></p>
+    <table class="panel-table"><thead><tr><th>Raqam</th><th>Name</th><th>Tarif</th><th>Tugaydi</th><th></th></tr></thead><tbody>%%SUB_ROWS%%</tbody></table>
+  </div>
+<style>.pm-input { font-family:'Inter',sans-serif; font-size:14px; background:var(--bg2); border:1px solid var(--glass-border); border-radius:12px; padding:10px 12px; color:var(--ink); }</style>
+<script>
+(function () {
+  var TIER_DAYS = %%TIER_DAYS_JSON%%;
+  function say(id, msg, ok) { var el = document.getElementById(id); el.textContent = msg; el.style.color = ok ? '#1E9E5A' : '#E1477A'; }
+  function post(url, data) {
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) })
+      .then(function (res) { return res.json().catch(function () { return {}; }).then(function (r) { return { ok: res.ok, r: r }; }); });
+  }
+  var tierSel = document.getElementById('pm-sub-tier');
+  var daysInp = document.getElementById('pm-sub-days');
+  function fillDays() { daysInp.value = TIER_DAYS[tierSel.value] || 30; }
+  tierSel.addEventListener('change', fillDays); fillDays();
+
+  document.getElementById('pm-save-features').addEventListener('click', function () {
+    var features = {};
+    document.querySelectorAll('input[data-tier]').forEach(function (cb) {
+      var t = cb.getAttribute('data-tier');
+      if (!features[t]) features[t] = [];
+      if (cb.checked) features[t].push(cb.getAttribute('data-feature'));
+    });
+    post('/api/panel/tier-features', { features: features }).then(function (o) {
+      say('pm-features-status', o.ok ? 'Saqlandi' : (o.r.detail || 'Xatolik'), o.ok);
+    });
+  });
+
+  document.getElementById('pm-save-limit').addEventListener('click', function () {
+    post('/api/panel/limit-config', {
+      count: parseInt(document.getElementById('pm-limit-count').value, 10),
+      hours: parseInt(document.getElementById('pm-limit-hours').value, 10)
+    }).then(function (o) { say('pm-limit-status', o.ok ? 'Saqlandi' : (o.r.detail || 'Xatolik'), o.ok); });
+  });
+
+  document.getElementById('pm-sub-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    post('/api/panel/set-subscription', {
+      phone: document.getElementById('pm-sub-phone').value,
+      tier: tierSel.value,
+      days: parseInt(daysInp.value, 10)
+    }).then(function (o) {
+      if (o.ok) { window.location.reload(); } else { say('pm-sub-status', o.r.detail || 'Xatolik', false); }
+    });
+  });
+
+  window.removeSub = function (phone) {
+    if (!confirm('Bu raqamning tarifini olib tashlaysizmi?')) return;
+    post('/api/panel/remove-subscription', { phone: phone }).then(function () { window.location.reload(); });
+  };
+})();
+</script>
+"""
+
+
 @app.get("/panel", response_class=HTMLResponse)
 def panel_page(request: Request):
     if not request_is_admin(request):
@@ -1311,6 +1667,45 @@ def panel_page(request: Request):
         for a in admins
     )
 
+    lim_count, lim_hours = get_limit_config()
+    tier_headers = "".join(
+        f'<th>{t["name"]}<br><span style="font-weight:400;">{t["price"]} / {t["period"]}</span></th>'
+        for t in TIERS.values()
+    )
+    feature_rows = ""
+    for fkey, flabel in FEATURES.items():
+        cells = ""
+        for tkey in TIERS:
+            checked = "checked" if fkey in get_tier_features(tkey) else ""
+            cells += f'<td><input type="checkbox" data-tier="{tkey}" data-feature="{fkey}" {checked}></td>'
+        feature_rows += f"<tr><td>{flabel}</td>{cells}</tr>"
+    tier_options = "".join(f'<option value="{k}">{t["name"]}</option>' for k, t in TIERS.items())
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT s.phone, s.tier, s.expires_at, p.display_name FROM subscriptions s "
+        "LEFT JOIN profiles p ON p.phone = s.phone WHERE s.expires_at > ? ORDER BY s.expires_at ASC",
+        (int(time.time()),),
+    )
+    sub_list = cur.fetchall()
+    conn.close()
+    sub_rows = "".join(
+        f'<tr><td>{ph}</td><td>{escape_html(nm or "-")}</td><td>{TIERS.get(tr, {}).get("name", tr)}</td>'
+        f'<td>{fmt_ts(exp)}</td><td><button type="button" class="btn-outline panel-mini-btn" onclick="removeSub(\'{ph}\')">Olib tashlash</button></td></tr>'
+        for ph, tr, exp, nm in sub_list
+    ) or '<tr><td colspan="5" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
+    premium_html = (
+        PANEL_PREMIUM_TEMPLATE
+        .replace("%%TIER_HEADERS%%", tier_headers)
+        .replace("%%FEATURE_ROWS%%", feature_rows)
+        .replace("%%LIMIT_COUNT%%", str(lim_count))
+        .replace("%%LIMIT_HOURS%%", str(lim_hours))
+        .replace("%%TIER_OPTIONS%%", tier_options)
+        .replace("%%TIER_DAYS_JSON%%", json.dumps({k: t["days"] for k, t in TIERS.items()}))
+        .replace("%%SUB_ROWS%%", sub_rows)
+    )
+
     body = f"""<div class="page-wrap" style="max-width:920px;">
   <div class="page-header" style="text-align:left;">
     <p class="eyebrow">Admin</p>
@@ -1349,6 +1744,8 @@ def panel_page(request: Request):
     <h3 style="margin-top:0;">Kirgan raqamlar</h3>
     <table class="panel-table"><thead><tr><th>Raqam</th><th>Name</th><th>Holati</th><th>Birinchi kirgan</th><th>Oxirgi faollik</th><th></th></tr></thead><tbody>{visitor_rows}</tbody></table>
   </div>
+
+  {premium_html}
 
   <div class="benefit-card" style="margin-bottom:28px;">
     <h3 style="margin-top:0;">Adminlar</h3>
@@ -1460,6 +1857,86 @@ def panel_remove_admin(form: VisitorActionForm, request: Request):
         raise HTTPException(status_code=400, detail="Kamida bitta admin qolishi kerak")
     phone = normalize_phone(form.phone)
     cur.execute("DELETE FROM admins WHERE phone = ?", (phone,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+class TierFeaturesForm(BaseModel):
+    features: dict
+
+
+class LimitConfigForm(BaseModel):
+    count: int
+    hours: int
+
+
+class SubscriptionForm(BaseModel):
+    phone: str
+    tier: str
+    days: int
+
+
+@app.post("/api/panel/tier-features")
+def panel_tier_features(form: TierFeaturesForm, request: Request):
+    if not request_is_admin(request):
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    for tier in TIERS:
+        cur.execute("DELETE FROM tier_features WHERE tier = ?", (tier,))
+        for feature in form.features.get(tier, []):
+            if feature in FEATURES:
+                cur.execute(
+                    "INSERT OR IGNORE INTO tier_features (tier, feature) VALUES (?, ?)", (tier, feature)
+                )
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/panel/limit-config")
+def panel_limit_config(form: LimitConfigForm, request: Request):
+    if not request_is_admin(request):
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    if not (1 <= form.count <= 100) or not (1 <= form.hours <= 72):
+        raise HTTPException(status_code=400, detail="Noma soni 1-100, soat 1-72 oralig'ida bo'lsin")
+    set_setting("free_limit_count", str(form.count))
+    set_setting("free_limit_hours", str(form.hours))
+    return {"ok": True}
+
+
+@app.post("/api/panel/set-subscription")
+def panel_set_subscription(form: SubscriptionForm, request: Request):
+    if not request_is_admin(request):
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    phone = normalize_phone(form.phone)
+    if len(phone) < 7:
+        raise HTTPException(status_code=400, detail="Telefon raqam noto'g'ri")
+    if form.tier not in TIERS:
+        raise HTTPException(status_code=400, detail="Tarif noto'g'ri")
+    if not (1 <= form.days <= 3650):
+        raise HTTPException(status_code=400, detail="Muddat 1-3650 kun oralig'ida bo'lsin")
+    expires = int(time.time()) + form.days * 86400
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO subscriptions (phone, tier, expires_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(phone) DO UPDATE SET tier = excluded.tier, expires_at = excluded.expires_at",
+        (phone, form.tier, expires),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/panel/remove-subscription")
+def panel_remove_subscription(form: VisitorActionForm, request: Request):
+    if not request_is_admin(request):
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM subscriptions WHERE phone = ?", (normalize_phone(form.phone),))
     conn.commit()
     conn.close()
     return {"ok": True}
@@ -1688,6 +2165,7 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
       <button class="tpl-card" data-tpl="minnatdorchilik"><span class="tpl-mark">14</span><span class="tpl-name">Minnatdorchilik xati</span></button>
     </div>
     <p class="next-note" id="next-note">Tanlang — keyingi bosqichda forma ochiladi.</p>
+    <p class="limit-note" id="limit-note"></p>
   </div>
 </section>
 
@@ -2022,6 +2500,71 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
   </div>
 </div>
 
+<style>
+.limit-note { margin-top: 8px; font-size: 13px; color: var(--ink-dim); }
+.fx-overlay { display: none; position: fixed; inset: 0; z-index: 9000; align-items: center; justify-content: center; padding: 24px; text-align: center; background: linear-gradient(160deg, #0E1A33 0%, #1B2F5C 100%); color: #fff; }
+.fx-overlay.show { display: flex; }
+.fx-box { max-width: 420px; width: 100%; }
+.fx-box h2 { font-family: 'Sora', sans-serif; font-size: 26px; margin: 18px 0 10px; }
+.fx-box p { color: rgba(255,255,255,0.75); font-size: 14.5px; line-height: 1.6; margin: 0 0 18px; }
+.fx-timer { font-family: 'Sora', sans-serif; font-weight: 800; font-size: 44px; letter-spacing: 0.04em; margin: 4px 0 24px; }
+.fx-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.fx-btn { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; border-radius: 999px; padding: 12px 26px; border: 1px solid rgba(255,255,255,0.35); background: transparent; color: #fff; cursor: pointer; text-decoration: none; display: inline-block; }
+.fx-btn.main { background: #fff; color: #16233B; border-color: #fff; }
+.sleep-char { position: relative; width: 150px; height: 150px; margin: 0 auto; animation: sleepBreath 4s ease-in-out infinite; }
+.sleep-char svg { width: 100%; height: 100%; }
+.sleep-z { position: absolute; font-family: 'Sora', sans-serif; font-weight: 800; color: #9CC0FF; opacity: 0; animation: sleepZ 3s ease-in-out infinite; }
+.sleep-z.z1 { right: -6px; top: 14px; font-size: 22px; }
+.sleep-z.z2 { right: -26px; top: -6px; font-size: 28px; animation-delay: 1s; }
+.sleep-z.z3 { right: -50px; top: -30px; font-size: 34px; animation-delay: 2s; }
+@keyframes sleepZ { 0% { opacity: 0; transform: translateY(8px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+@keyframes sleepBreath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+.charge-batt { width: 130px; margin: 0 auto; }
+.charge-fill { transform-origin: left center; animation: chargeFill 2.4s ease-out forwards; }
+@keyframes chargeFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .sleep-char, .sleep-z, .charge-fill { animation: none; } .sleep-z { opacity: 1; } }
+</style>
+
+<div class="fx-overlay" id="sleep-overlay">
+  <div class="fx-box">
+    <div class="sleep-char">
+      <svg viewBox="0 0 150 150" fill="none">
+        <defs><linearGradient id="slg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A8CFF"/><stop offset="1" stop-color="#2F6FED"/></linearGradient></defs>
+        <circle cx="75" cy="78" r="56" fill="url(#slg)"/>
+        <path d="M46 70c6 7 16 7 22 0" stroke="#0E1A33" stroke-width="5" stroke-linecap="round"/>
+        <path d="M82 70c6 7 16 7 22 0" stroke="#0E1A33" stroke-width="5" stroke-linecap="round"/>
+        <ellipse cx="75" cy="98" rx="7" ry="5" fill="#0E1A33"/>
+        <circle cx="42" cy="88" r="7" fill="#7DB2FF" opacity="0.55"/>
+        <circle cx="108" cy="88" r="7" fill="#7DB2FF" opacity="0.55"/>
+        <path d="M30 40c10-24 40-34 66-22l-8 20c-18-8-38-2-46 14Z" fill="#16233B"/>
+        <circle cx="98" cy="20" r="8" fill="#9CC0FF"/>
+      </svg>
+      <span class="sleep-z z1">Z</span><span class="sleep-z z2">Z</span><span class="sleep-z z3">Z</span>
+    </div>
+    <h2 id="sleep-title">Sayt charchadi va uxlashga yotdi</h2>
+    <p id="sleep-text"></p>
+    <div class="fx-timer" id="sleep-timer">00:00:00</div>
+    <div class="fx-actions">
+      <a class="fx-btn main" id="sleep-premium" href="/tariflar">Saytni uyg'otish: tarif olish</a>
+      <button type="button" class="fx-btn" id="sleep-close">Yopish</button>
+    </div>
+  </div>
+</div>
+
+<div class="fx-overlay" id="charge-overlay">
+  <div class="fx-box">
+    <svg class="charge-batt" viewBox="0 0 130 70" fill="none">
+      <rect x="3" y="8" width="112" height="54" rx="12" stroke="#fff" stroke-width="4"/>
+      <rect x="117" y="25" width="9" height="20" rx="3" fill="#fff"/>
+      <rect class="charge-fill" x="11" y="16" width="96" height="38" rx="7" fill="#4ADE80"/>
+      <path d="M62 20l-14 18h12l-4 14 18-20H62l4-12Z" fill="#0E1A33"/>
+    </svg>
+    <h2>Sayt quvvatlandi</h2>
+    <p id="charge-tier"></p>
+    <button type="button" class="fx-btn main" id="charge-close">Davom etish</button>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 function showScreen(id) {
@@ -2174,6 +2717,93 @@ document.querySelectorAll('.app-form').forEach(form => {
   }
 });
 
+// --- Qurilma identifikatori (localStorage + cookie) ---
+function getDeviceId() {
+  let id = '';
+  try { id = localStorage.getItem('nomalar_dev') || ''; } catch (e) {}
+  if (!id) {
+    const m = document.cookie.match(/(?:^|; )nomalar_dev=([^;]+)/);
+    if (m) id = m[1];
+  }
+  if (!id) {
+    id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
+  }
+  try { localStorage.setItem('nomalar_dev', id); } catch (e) {}
+  document.cookie = 'nomalar_dev=' + id + '; max-age=31536000; path=/; samesite=lax';
+  return id;
+}
+const deviceId = getDeviceId();
+
+// --- "Sayt uxlash" ekrani ---
+let sleepTimer = null;
+function pad2(n) { return String(n).padStart(2, '0'); }
+function fmtHMS(total) {
+  return pad2(Math.floor(total / 3600)) + ':' + pad2(Math.floor((total % 3600) / 60)) + ':' + pad2(total % 60);
+}
+function setAwake(awake) {
+  document.getElementById('sleep-title').textContent = awake ? "Sayt uyg'ondi" : 'Sayt charchadi va uxlashga yotdi';
+  document.getElementById('sleep-timer').style.display = awake ? 'none' : '';
+  document.getElementById('sleep-premium').style.display = awake ? 'none' : '';
+  const closeBtn = document.getElementById('sleep-close');
+  closeBtn.textContent = awake ? 'Davom etish' : 'Yopish';
+  if (awake) {
+    document.getElementById('sleep-text').textContent = 'Endi yana noma yaratishingiz mumkin.';
+    loadLimitStatus(true);
+  }
+}
+function showSleep(seconds, limit, hours) {
+  const overlay = document.getElementById('sleep-overlay');
+  const endAt = Date.now() + seconds * 1000;
+  document.getElementById('sleep-text').textContent =
+    "Bepul limit tugadi: har " + hours + " soatda " + limit + " ta noma. Navbatdagi noma yaratish mumkin bo'lgan vaqtgacha:";
+  setAwake(false);
+  overlay.classList.add('show');
+  clearInterval(sleepTimer);
+  const tick = () => {
+    const left = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+    document.getElementById('sleep-timer').textContent = fmtHMS(left);
+    if (left <= 0) { clearInterval(sleepTimer); setAwake(true); }
+  };
+  tick();
+  sleepTimer = setInterval(tick, 1000);
+}
+document.getElementById('sleep-close').addEventListener('click', () => {
+  document.getElementById('sleep-overlay').classList.remove('show');
+});
+
+// --- "Sayt quvvatlandi" animatsiyasi ---
+function maybeShowCharged(st) {
+  if (st.tier === 'admin') return;
+  let seen = '';
+  try { seen = localStorage.getItem('nomalar_charged') || ''; } catch (e) {}
+  if (seen === st.sub_key) return;
+  try { localStorage.setItem('nomalar_charged', st.sub_key); } catch (e) {}
+  document.getElementById('charge-tier').textContent = st.tier_name + ' tarifi faollashdi. Cheklovlar olib tashlandi.';
+  document.getElementById('charge-overlay').classList.add('show');
+}
+document.getElementById('charge-close').addEventListener('click', () => {
+  document.getElementById('charge-overlay').classList.remove('show');
+});
+
+// --- Limit holatini serverdan olish ---
+async function loadLimitStatus(quiet) {
+  try {
+    const res = await fetch('/api/limit-status', { headers: { 'X-Device-Id': deviceId } });
+    const st = await res.json();
+    const note = document.getElementById('limit-note');
+    if (st.unlimited) {
+      note.textContent = 'Tarifingiz: ' + st.tier_name + '. Noma yaratish cheksiz.';
+      if (!quiet) maybeShowCharged(st);
+    } else if (st.limited) {
+      note.textContent = 'Bepul limit tugadi.';
+      if (!quiet) showSleep(st.seconds, st.limit, st.window_hours);
+    } else {
+      note.textContent = 'Qolgan bepul limit: ' + st.remaining + ' / ' + st.limit + ' (har ' + st.window_hours + ' soatda).';
+    }
+  } catch (e) {}
+}
+loadLimitStatus(false);
+
 function setupForm(formId, errorId, apiPath) {
   const form = document.getElementById(formId);
   const errorEl = document.getElementById(errorId);
@@ -2185,9 +2815,16 @@ function setupForm(formId, errorId, apiPath) {
     try {
       const res = await fetch(apiPath, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Device-Id': deviceId },
         body: JSON.stringify(data),
       });
+      if (res.status === 401) { window.location.href = '/kirish?next=/yaratish'; return; }
+      if (res.status === 429) {
+        const lim = await res.json();
+        const st = await (await fetch('/api/limit-status', { headers: { 'X-Device-Id': deviceId } })).json();
+        showSleep(lim.seconds, st.limit, st.window_hours);
+        return;
+      }
       if (!res.ok) {
         const err = await res.json();
         errorEl.textContent = err.detail || "Xatolik yuz berdi, qayta urinib ko'ring.";
@@ -2198,6 +2835,7 @@ function setupForm(formId, errorId, apiPath) {
       document.getElementById('result-link').value = fullUrl;
       document.getElementById('btn-view').href = fullUrl;
       showScreen('screen-result');
+      loadLimitStatus(true);
     } catch (err) {
       errorEl.textContent = "Internet aloqasida muammo, qayta urinib ko'ring.";
     }
@@ -2362,6 +3000,9 @@ def create_toy(form: ToyForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.kuyov.strip() or not form.kelin.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2377,6 +3018,7 @@ def create_toy(form: ToyForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2403,6 +3045,9 @@ def create_birthday(form: BirthdayForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.ism.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2418,6 +3063,7 @@ def create_birthday(form: BirthdayForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2442,6 +3088,9 @@ def create_explanation(form: ExplanationForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.sarlavha.strip() or not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2457,6 +3106,7 @@ def create_explanation(form: ExplanationForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2481,6 +3131,9 @@ def create_reminder(form: ReminderForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.sarlavha.strip() or not form.kimga.strip() or not form.matn.strip() or not form.muddat or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2496,6 +3149,7 @@ def create_reminder(form: ReminderForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2521,6 +3175,9 @@ def create_guarantee(form: GuaranteeForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.mahsulot.strip() or not form.mijoz.strip() or not form.muddat.strip() or not form.sana or not form.beruvchi.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2536,6 +3193,7 @@ def create_guarantee(form: GuaranteeForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2561,6 +3219,9 @@ def create_parent_guarantee(form: ParentGuaranteeForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.oquvchi.strip() or not form.maktab.strip() or not form.otaona.strip() or not form.vada.strip() or not form.sana:
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2576,6 +3237,7 @@ def create_parent_guarantee(form: ParentGuaranteeForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2598,6 +3260,9 @@ def create_birthday_greeting(form: BirthdayGreetingForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.kimga.strip() or not form.tabrik.strip() or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2613,6 +3278,7 @@ def create_birthday_greeting(form: BirthdayGreetingForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2638,6 +3304,9 @@ def create_cradle(form: CradleForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.chaqaloq.strip() or not form.otaona.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2653,6 +3322,7 @@ def create_cradle(form: CradleForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2678,6 +3348,9 @@ def create_graduation(form: GraduationForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.ism.strip() or not form.muassasa.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2693,6 +3366,7 @@ def create_graduation(form: GraduationForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2719,6 +3393,9 @@ def create_official_event(form: OfficialEventForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.tadbir.strip() or not form.tashkilotchi.strip() or not form.sana or not form.manzil.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2734,6 +3411,7 @@ def create_official_event(form: OfficialEventForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2756,6 +3434,9 @@ def create_love_letter(form: LoveLetterForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2771,6 +3452,7 @@ def create_love_letter(form: LoveLetterForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2796,6 +3478,9 @@ def create_vizitka(form: VizitkaForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.ism.strip() or not form.lavozim.strip() or not form.telefon.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2811,6 +3496,7 @@ def create_vizitka(form: VizitkaForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2836,6 +3522,9 @@ def create_resume(form: ResumeForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.ism.strip() or not form.lavozim.strip() or not form.telefon.strip() or not form.tajriba.strip():
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2851,6 +3540,7 @@ def create_resume(form: ResumeForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
@@ -2874,6 +3564,9 @@ def create_thanks(form: ThanksForm, request: Request):
         raise HTTPException(status_code=503, detail="Sayt vaqtincha ishlamayapti")
     if not request_is_authenticated(request):
         raise HTTPException(status_code=401, detail="Avval telefon raqamingiz bilan kiring")
+    limit_resp = check_limit(request)
+    if limit_resp:
+        return limit_resp
     if not form.kimga.strip() or not form.matn.strip() or not form.kimdan.strip() or not form.sana:
         raise HTTPException(status_code=400, detail="Kerakli maydonlar to'ldirilmagan")
 
@@ -2889,6 +3582,7 @@ def create_thanks(form: ThanksForm, request: Request):
     conn.commit()
     conn.close()
 
+    log_usage(request)
     return {"slug": slug, "url": f"/n/{slug}"}
 
 
