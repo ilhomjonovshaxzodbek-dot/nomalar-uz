@@ -138,12 +138,67 @@ def init_db():
     """)
     cur.execute("SELECT 1 FROM settings WHERE key = 'tier_features_seeded'")
     if not cur.fetchone():
-        for seed_tier in ("plus", "pro", "ultra"):
+        for seed_tier in ("plus", "pro", "max"):
             cur.execute(
                 "INSERT OR IGNORE INTO tier_features (tier, feature) VALUES (?, 'unlimited_notes')",
                 (seed_tier,),
             )
         cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('tier_features_seeded', '1')")
+    cur.execute("UPDATE OR IGNORE tier_features SET tier = 'max' WHERE tier = 'ultra'")
+    cur.execute("DELETE FROM tier_features WHERE tier = 'ultra'")
+    cur.execute("UPDATE subscriptions SET tier = 'max' WHERE tier = 'ultra'")
+    cur.execute("SELECT 1 FROM settings WHERE key = 'grant_logo_maker'")
+    if not cur.fetchone():
+        cur.execute("INSERT OR IGNORE INTO tier_features (tier, feature) VALUES ('max', 'logo_maker')")
+        cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('grant_logo_maker', '1')")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_phone TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            title TEXT NOT NULL,
+            data TEXT NOT NULL,
+            thumb TEXT,
+            hidden INTEGER DEFAULT 0,
+            created_at INTEGER,
+            updated_at INTEGER
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects (owner_phone, kind)")
+    admin_cols = [r[1] for r in cur.execute("PRAGMA table_info(admins)").fetchall()]
+    if "role" not in admin_cols:
+        cur.execute("ALTER TABLE admins ADD COLUMN role TEXT DEFAULT 'owner'")
+    cur.execute("UPDATE admins SET role = 'owner' WHERE role IS NULL OR role = ''")
+    page_cols = [r[1] for r in cur.execute("PRAGMA table_info(pages)").fetchall()]
+    if "hidden" not in page_cols:
+        cur.execute("ALTER TABLE pages ADD COLUMN hidden INTEGER DEFAULT 0")
+    msg_cols = [r[1] for r in cur.execute("PRAGMA table_info(messages)").fetchall()]
+    if "is_read" not in msg_cols:
+        cur.execute("ALTER TABLE messages ADD COLUMN is_read INTEGER DEFAULT 0")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admin_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            requester_phone TEXT NOT NULL,
+            action TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            ts INTEGER NOT NULL,
+            decided_at INTEGER,
+            decided_by TEXT,
+            result TEXT
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admin_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts INTEGER NOT NULL,
+            actor_phone TEXT NOT NULL,
+            actor_role TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            status TEXT NOT NULL
+        )
+    """)
     # Boshlang'ich admin raqamlari (agar hali qo'shilmagan bo'lsa)
     for seed_phone in ("998951275154", "998332845154"):
         cur.execute(
@@ -317,6 +372,8 @@ html, body { margin: 0; padding: 0; background: linear-gradient(160deg, var(--bg
 .price-period { font-size: 13px; color: var(--ink-dim); margin: 0 0 4px; min-height: 18px; }
 .price-card ul { list-style: none; padding: 0; margin: 14px 0 18px; display: flex; flex-direction: column; gap: 9px; font-size: 13.5px; color: var(--ink-dim); }
 .price-card li:before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent1); margin-right: 10px; vertical-align: middle; }
+@media (max-width: 1100px) { .nav-links { gap: 14px; } .nav-links a { font-size: 13px; } .nav-profile .nm { display: none; } }
+.nav-links a { white-space: nowrap; }
 .nav-profile { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); font-size: 13.5px; font-weight: 600; padding: 4px 14px 4px 4px; border: 1px solid var(--glass-border); border-radius: 999px; background: #fff; }
 .nav-profile:hover { border-color: var(--accent1); }
 .nav-profile .nm { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -384,6 +441,16 @@ def avatar_url(profile) -> str:
     return ""
 
 
+def user_can_use(request: Request, feature: str) -> bool:
+    """Admin yoki tarifida shu imkoniyat yoqilgan faol obunachi."""
+    if request_is_admin(request):
+        return True
+    if not request_is_authenticated(request):
+        return False
+    sub = get_active_subscription(get_auth_phone(request))
+    return bool(sub and feature in get_tier_features(sub["tier"]))
+
+
 def nav_user(request: Request) -> dict:
     """Navbar uchun joriy foydalanuvchi ma'lumoti."""
     if not request_is_authenticated(request):
@@ -393,6 +460,7 @@ def nav_user(request: Request) -> dict:
     return {
         "authenticated": True,
         "is_admin": request_is_admin(request),
+        "tools": user_can_use(request, "logo_maker"),
         "name": prof.get("display_name", ""),
         "username": prof.get("username", ""),
         "avatar": avatar_url(prof),
@@ -413,6 +481,12 @@ def nav_html(active: str = "", user=None) -> str:
         return f'<span class="nav-avatar">{initial}</span>'
 
     shown_name = esc_attr(user.get("name") or "Profil")
+    tools_li = (
+        '<li><a href="/vositalar" class="' + cls("tools") + '">Vositalar</a></li>' if user.get("tools") else ""
+    )
+    tools_mobile = (
+        '<a href="/vositalar" class="' + cls("tools") + '">Vositalar</a>' if user.get("tools") else ""
+    )
 
     if user.get("authenticated"):
         panel_btn = (
@@ -442,6 +516,7 @@ def nav_html(active: str = "", user=None) -> str:
     <li><a href="/afzalliklar" class="{cls('afzallik')}">Afzalliklar</a></li>
     <li><a href="/tariflar" class="{cls('tariflar')}">Tariflar</a></li>
     <li><a href="/aloqa" class="{cls('aloqa')}">Aloqa</a></li>
+    {tools_li}
   </ul>
   <div class="nav-right">
     {auth_link}
@@ -457,6 +532,7 @@ def nav_html(active: str = "", user=None) -> str:
     <a href="/afzalliklar" class="{cls('afzallik')}">Afzalliklar</a>
     <a href="/tariflar" class="{cls('tariflar')}">Tariflar</a>
     <a href="/aloqa" class="{cls('aloqa')}">Aloqa</a>
+    {tools_mobile}
     {auth_link_mobile}
     <a href="/yaratish" class="btn-login">Noma yaratish</a>
   </div>
@@ -561,11 +637,32 @@ def clear_active_admin_phone() -> None:
     set_active_admin_phone("")
 
 
-def request_is_admin(request: Request) -> bool:
+def get_admin_role(phone: str):
+    if not phone:
+        return None
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT role FROM admins WHERE phone = ?", (phone,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return row[0] or "owner"
+
+
+def request_admin_role(request: Request):
+    """'owner', 'helper' yoki None (admin sessiyasi yo'q)."""
     phone = get_auth_phone(request)
-    if not phone or not is_admin_phone(phone):
-        return False
-    return phone == get_active_admin_phone()
+    role = get_admin_role(phone)
+    if not role:
+        return None
+    if role == "owner" and phone != get_active_admin_phone():
+        return None
+    return role
+
+
+def request_is_admin(request: Request) -> bool:
+    return request_admin_role(request) is not None
 
 
 def is_site_paused() -> bool:
@@ -575,6 +672,23 @@ def is_site_paused() -> bool:
     row = cur.fetchone()
     conn.close()
     return bool(row and row[0] == "1")
+
+
+HIDDEN_PAGE_HTML = """<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Noma ko'rinmaydi — Nomalar.uz</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: linear-gradient(160deg, #EAF2FF 0%, #F3F8FF 50%, #FFFFFF 100%); color: #16233B; font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  h1 { font-size: 24px; margin: 0 0 10px; }
+  p { color: #64748B; font-size: 15px; line-height: 1.6; margin: 0; }
+</style>
+</head>
+<body><div><h1>Bu noma hozircha ko'rinmaydi</h1><p>Noma egasi yoki sayt ma'muriyati uni vaqtincha yashirgan.</p></div></body>
+</html>"""
 
 
 MAINTENANCE_HTML = """<!DOCTYPE html>
@@ -620,13 +734,17 @@ def maintenance_or_none():
 TIERS = {
     "plus": {"name": "Plus", "price": "$1.99", "period": "1 oy", "days": 30},
     "pro": {"name": "Pro", "price": "$4.99", "period": "1 oy", "days": 30},
-    "ultra": {"name": "Ultra", "price": "$49.99", "period": "4 oy", "days": 120},
+    "max": {"name": "Max", "price": "$49.99", "period": "4 oy", "days": 120},
 }
 
 # Yangi imkoniyat qo'shilganda shu yerga yoziladi, panelda o'zi paydo bo'ladi
 FEATURES = {
     "unlimited_notes": "Cheksiz noma yaratish",
+    "logo_maker": "Logotip yasash",
 }
+
+# Tariflar sahifasida ommaga ko'rsatiladigan imkoniyatlar (qolganlari yashirin)
+PUBLIC_FEATURES = {"unlimited_notes"}
 
 DEFAULT_LIMIT_COUNT = 3
 DEFAULT_LIMIT_HOURS = 4
@@ -814,7 +932,7 @@ def tariflar_page(request: Request):
     )
     for key, t in TIERS.items():
         enabled = get_tier_features(key)
-        items = "".join(f"<li>{label}</li>" for fkey, label in FEATURES.items() if fkey in enabled)
+        items = "".join(f"<li>{label}</li>" for fkey, label in FEATURES.items() if fkey in enabled and fkey in PUBLIC_FEATURES)
         cards += (
             f'<div class="benefit-card price-card"><h3>{t["name"]}</h3>'
             f'<p class="price-big">{t["price"]}</p><p class="price-period">{t["period"]}</p>'
@@ -835,7 +953,7 @@ def tariflar_page(request: Request):
     return page_shell("Tariflar — Nomalar.uz", "tariflar", body, nav_user(request))
 
 
-def page_shell(title: str, active: str, body: str, user=False) -> str:
+def page_shell(title: str, active: str, body: str, user=False, fx: bool = True) -> str:
     return f"""<!DOCTYPE html>
 <html lang="uz">
 <head>
@@ -854,7 +972,7 @@ def page_shell(title: str, active: str, body: str, user=False) -> str:
 {social_links_html()}
 <p style="margin:0;">Yaratuvchi: Ilhomjonov Shahzodbek</p>
 </footer>
-{CURSOR_FX}
+{CURSOR_FX if fx else ''}
 </body>
 </html>"""
 
@@ -1163,13 +1281,14 @@ def submit_kirish(form: KirishForm):
 
     if is_admin_phone(phone):
         conn.close()
-        active = get_active_admin_phone()
-        if active and active != phone:
-            raise HTTPException(
-                status_code=403,
-                detail="Hozir boshqa admin tizimda. Avval u chiqishi kerak.",
-            )
-        set_active_admin_phone(phone)
+        if get_admin_role(phone) == "owner":
+            active = get_active_admin_phone()
+            if active and active != phone:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Hozir boshqa admin tizimda. Avval u chiqishi kerak.",
+                )
+            set_active_admin_phone(phone)
         ensure_profile(phone)
         resp = JSONResponse({"ok": True, "admin": True, "redirect": profile_redirect(phone, "/panel")})
         resp.set_cookie(AUTH_COOKIE, phone, max_age=60 * 60 * 24 * 90, httponly=True, samesite="lax")
@@ -1505,6 +1624,7 @@ def logout(request: Request):
 
 class AdminAddForm(BaseModel):
     telefon: str
+    role: str = "helper"
 
 
 class VisitorActionForm(BaseModel):
@@ -1601,265 +1721,185 @@ PANEL_PREMIUM_TEMPLATE = """
 """
 
 
-@app.get("/panel", response_class=HTMLResponse)
-def panel_page(request: Request):
-    if not request_is_admin(request):
-        return RedirectResponse("/kirish")
+# ============================================================
+#  ADMIN HARAKATLARI: BAJARISH, SO'ROV, JURNAL
+# ============================================================
 
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
+ACTION_NAMES = {
+    "block_visitor", "unblock_visitor", "toggle_pause", "add_admin", "remove_admin",
+    "hide_page", "unhide_page", "delete_page", "message_read", "message_delete",
+    "tier_features", "limit_config", "set_subscription", "remove_subscription",
+}
 
-    cur.execute("SELECT COUNT(*) FROM pages")
-    total_pages = cur.fetchone()[0]
 
-    cur.execute("SELECT template_type, COUNT(*) FROM pages GROUP BY template_type ORDER BY COUNT(*) DESC")
-    by_type = cur.fetchall()
-
-    cur.execute("SELECT slug, template_type, created_at FROM pages ORDER BY id DESC LIMIT 30")
-    recent_pages = cur.fetchall()
-
-    cur.execute("SELECT name, contact, matn, created_at FROM messages ORDER BY id DESC LIMIT 30")
-    recent_messages = cur.fetchall()
-
+def _upsert_setting(cur, key: str, value: str) -> None:
     cur.execute(
-        "SELECT v.phone, v.is_blocked, v.created_at, v.last_seen_at, p.display_name, p.username "
-        "FROM visitors v LEFT JOIN profiles p ON p.phone = v.phone ORDER BY v.id DESC"
-    )
-    visitors = cur.fetchall()
-
-    cur.execute("SELECT phone FROM admins ORDER BY id ASC")
-    admins = [r[0] for r in cur.fetchall()]
-
-    paused = is_site_paused()
-    conn.close()
-
-    active_count = sum(1 for v in visitors if not v[1])
-    blocked_count = sum(1 for v in visitors if v[1])
-
-    type_rows = "".join(
-        f'<div class="panel-stat"><span>{t}</span><strong>{c}</strong></div>' for t, c in by_type
-    ) or '<p style="color:var(--ink-dim);font-size:13px;">Hali yaratilgan noma yo\'q.</p>'
-
-    pages_rows = "".join(
-        f'<tr><td><a href="/n/{slug}" target="_blank">{slug}</a></td><td>{ttype}</td><td>{created}</td></tr>'
-        for slug, ttype, created in recent_pages
-    ) or '<tr><td colspan="3" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
-
-    messages_rows = "".join(
-        f'<tr><td>{escape_html(name)}</td><td>{escape_html(contact)}</td><td>{escape_html(matn)}</td><td>{created}</td></tr>'
-        for name, contact, matn, created in recent_messages
-    ) or '<tr><td colspan="4" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
-
-    visitor_rows = ""
-    for phone, blocked, created, last_seen, dname, uname in visitors:
-        label = escape_html(dname or "-") + (f" (@{escape_html(uname)})" if uname else "")
-        badge = '<span style="color:#E1477A;font-weight:600;">Bloklangan</span>' if blocked else '<span style="color:#1E9E5A;font-weight:600;">Aktiv</span>'
-        action_label = "Blokdan chiqarish" if blocked else "Bloklash"
-        visitor_rows += f"""<tr>
-  <td>{phone}</td><td>{label}</td><td>{badge}</td><td>{created}</td><td>{last_seen}</td>
-  <td><button type="button" class="btn-outline panel-mini-btn" data-phone="{phone}" data-blocked="{1 if blocked else 0}" onclick="toggleBlock(this)">{action_label}</button></td>
-</tr>"""
-    if not visitors:
-        visitor_rows = '<tr><td colspan="6" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
-
-    admin_rows = "".join(
-        f'<tr><td>{a}</td><td><button type="button" class="btn-outline panel-mini-btn" onclick="removeAdmin(\'{a}\')" {"disabled" if len(admins) <= 1 else ""}>O\'chirish</button></td></tr>'
-        for a in admins
+        "INSERT INTO settings (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
     )
 
-    lim_count, lim_hours = get_limit_config()
-    tier_headers = "".join(
-        f'<th>{t["name"]}<br><span style="font-weight:400;">{t["price"]} / {t["period"]}</span></th>'
-        for t in TIERS.values()
-    )
-    feature_rows = ""
-    for fkey, flabel in FEATURES.items():
-        cells = ""
-        for tkey in TIERS:
-            checked = "checked" if fkey in get_tier_features(tkey) else ""
-            cells += f'<td><input type="checkbox" data-tier="{tkey}" data-feature="{fkey}" {checked}></td>'
-        feature_rows += f"<tr><td>{flabel}</td>{cells}</tr>"
-    tier_options = "".join(f'<option value="{k}">{t["name"]}</option>' for k, t in TIERS.items())
 
+def describe_action(action: str, p: dict) -> str:
+    phone = normalize_phone(str(p.get("phone", "")))
+    names = {
+        "block_visitor": f"Raqamni bloklash: {phone}",
+        "unblock_visitor": f"Blokdan chiqarish: {phone}",
+        "toggle_pause": "Saytni to'xtatish yoki ishga tushirish",
+        "add_admin": f"Admin qo'shish: {phone} ({'asosiy' if p.get('role') == 'owner' else 'yordamchi'})",
+        "remove_admin": f"Adminni o'chirish: {phone}",
+        "hide_page": f"Nomani yashirish: {p.get('slug', '')}",
+        "unhide_page": f"Nomani ko'rsatish: {p.get('slug', '')}",
+        "delete_page": f"Nomani o'chirish: {p.get('slug', '')}",
+        "message_read": f"Xabarni o'qildi deb belgilash (#{p.get('id', '')})",
+        "message_delete": f"Xabarni o'chirish (#{p.get('id', '')})",
+        "tier_features": "Tarif imkoniyatlarini o'zgartirish",
+        "limit_config": f"Bepul limitni o'zgartirish: {p.get('count', '')} ta / {p.get('hours', '')} soat",
+        "set_subscription": f"Premium berish: {phone}, {p.get('tier', '')}, {p.get('days', '')} kun",
+        "remove_subscription": f"Premiumni olib tashlash: {phone}",
+    }
+    return names.get(action, action)
+
+
+def perform_action(action: str, p: dict) -> None:
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute(
-        "SELECT s.phone, s.tier, s.expires_at, p.display_name FROM subscriptions s "
-        "LEFT JOIN profiles p ON p.phone = s.phone WHERE s.expires_at > ? ORDER BY s.expires_at ASC",
-        (int(time.time()),),
-    )
-    sub_list = cur.fetchall()
-    conn.close()
-    sub_rows = "".join(
-        f'<tr><td>{ph}</td><td>{escape_html(nm or "-")}</td><td>{TIERS.get(tr, {}).get("name", tr)}</td>'
-        f'<td>{fmt_ts(exp)}</td><td><button type="button" class="btn-outline panel-mini-btn" onclick="removeSub(\'{ph}\')">Olib tashlash</button></td></tr>'
-        for ph, tr, exp, nm in sub_list
-    ) or '<tr><td colspan="5" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
-    premium_html = (
-        PANEL_PREMIUM_TEMPLATE
-        .replace("%%TIER_HEADERS%%", tier_headers)
-        .replace("%%FEATURE_ROWS%%", feature_rows)
-        .replace("%%LIMIT_COUNT%%", str(lim_count))
-        .replace("%%LIMIT_HOURS%%", str(lim_hours))
-        .replace("%%TIER_OPTIONS%%", tier_options)
-        .replace("%%TIER_DAYS_JSON%%", json.dumps({k: t["days"] for k, t in TIERS.items()}))
-        .replace("%%SUB_ROWS%%", sub_rows)
-    )
-
-    body = f"""<div class="page-wrap" style="max-width:920px;">
-  <div class="page-header" style="text-align:left;">
-    <p class="eyebrow">Admin</p>
-    <h1 class="section-title" style="margin-bottom:4px;">Boshqaruv paneli</h1>
-    <p class="section-sub" style="margin:0;">Sayt statistikasi va boshqaruv — faqat sizga ko'rinadi.</p>
-  </div>
-
-  <div class="benefit-grid" style="margin-bottom:32px;">
-    <div class="benefit-card"><h3 style="margin-top:0;">Jami nomalar</h3><p style="font-size:28px;font-weight:800;color:var(--accent1);margin:0;">{total_pages}</p></div>
-    <div class="benefit-card"><h3 style="margin-top:0;">Aktiv raqamlar</h3><p style="font-size:28px;font-weight:800;color:#1E9E5A;margin:0;">{active_count}</p></div>
-    <div class="benefit-card"><h3 style="margin-top:0;">Bloklangan</h3><p style="font-size:28px;font-weight:800;color:#E1477A;margin:0;">{blocked_count}</p></div>
-  </div>
-
-  <div class="benefit-card" style="margin-bottom:28px;">
-    <h3 style="margin-top:0;">Sayt holati</h3>
-    <p style="font-size:13.5px;color:var(--ink-dim);margin:0 0 12px;">Sayt hozir: <strong style="color:{'#E1477A' if paused else '#1E9E5A'};">{'To\'xtatilgan' if paused else 'Faol'}</strong></p>
-    <button type="button" class="btn-login" style="border:none;" onclick="togglePause()">{'Saytni ishga tushirish' if paused else 'Saytni to\'xtatish'}</button>
-  </div>
-
-  <div class="benefit-card" style="margin-bottom:28px;">
-    <h3 style="margin-top:0;">Noma turlari bo'yicha</h3>
-    <div style="display:flex;flex-direction:column;gap:6px;">{type_rows}</div>
-  </div>
-
-  <div class="benefit-card" style="margin-bottom:28px;overflow-x:auto;">
-    <h3 style="margin-top:0;">Yaratilgan nomalar (oxirgi 30 ta)</h3>
-    <table class="panel-table"><thead><tr><th>Slug</th><th>Turi</th><th>Sana</th></tr></thead><tbody>{pages_rows}</tbody></table>
-  </div>
-
-  <div class="benefit-card" style="margin-bottom:28px;overflow-x:auto;">
-    <h3 style="margin-top:0;">Aloqa xabarlari (oxirgi 30 ta)</h3>
-    <table class="panel-table"><thead><tr><th>Ism</th><th>Kontakt</th><th>Xabar</th><th>Sana</th></tr></thead><tbody>{messages_rows}</tbody></table>
-  </div>
-
-  <div class="benefit-card" style="margin-bottom:28px;overflow-x:auto;">
-    <h3 style="margin-top:0;">Kirgan raqamlar</h3>
-    <table class="panel-table"><thead><tr><th>Raqam</th><th>Name</th><th>Holati</th><th>Birinchi kirgan</th><th>Oxirgi faollik</th><th></th></tr></thead><tbody>{visitor_rows}</tbody></table>
-  </div>
-
-  {premium_html}
-
-  <div class="benefit-card" style="margin-bottom:28px;">
-    <h3 style="margin-top:0;">Adminlar</h3>
-    <table class="panel-table" style="margin-bottom:14px;"><thead><tr><th>Raqam</th><th></th></tr></thead><tbody>{admin_rows}</tbody></table>
-    <form id="add-admin-form" style="display:flex;gap:8px;flex-wrap:wrap;">
-      <input type="text" id="new-admin-phone" placeholder="+998 90 123 45 67" required
-        style="flex:1;min-width:160px;font-size:14px;background:var(--bg2);border:1px solid var(--glass-border);border-radius:12px;padding:10px 13px;color:var(--ink);">
-      <button type="submit" class="btn-outline">Yordamchi admin qo'shish</button>
-    </form>
-    <p id="add-admin-status" style="font-size:13px;color:var(--ink-dim);margin:8px 0 0;"></p>
-  </div>
-
-  <form method="post" action="/api/chiqish">
-    <button type="submit" class="btn-outline" style="color:#E1477A;border-color:#E1477A;">Chiqish</button>
-  </form>
-</div>
-<style>
-.panel-stat {{ display:flex; justify-content:space-between; font-size:13.5px; padding:6px 0; border-bottom:1px solid var(--glass-border); }}
-.panel-table {{ width:100%; border-collapse:collapse; font-size:13px; }}
-.panel-table th {{ text-align:left; color:var(--ink-dim); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--glass-border); white-space:nowrap; }}
-.panel-table td {{ padding:6px 8px; border-bottom:1px solid var(--glass-border); vertical-align:top; }}
-.panel-mini-btn {{ padding:6px 12px; font-size:12px; }}
-</style>
-<script>
-async function toggleBlock(btn) {{
-  const phone = btn.dataset.phone;
-  const blocked = btn.dataset.blocked === '1';
-  await fetch(blocked ? '/api/panel/unblock' : '/api/panel/block', {{
-    method: 'POST', headers: {{'Content-Type':'application/json'}}, body: JSON.stringify({{phone}})
-  }});
-  window.location.reload();
-}}
-async function removeAdmin(phone) {{
-  if (!confirm('Bu admin raqamini o\\'chirishni tasdiqlaysizmi?')) return;
-  await fetch('/api/panel/remove-admin', {{
-    method: 'POST', headers: {{'Content-Type':'application/json'}}, body: JSON.stringify({{phone}})
-  }});
-  window.location.reload();
-}}
-async function togglePause() {{
-  await fetch('/api/panel/toggle-pause', {{ method: 'POST' }});
-  window.location.reload();
-}}
-document.getElementById('add-admin-form').addEventListener('submit', async (e) => {{
-  e.preventDefault();
-  const phone = document.getElementById('new-admin-phone').value;
-  const statusEl = document.getElementById('add-admin-status');
-  const res = await fetch('/api/panel/add-admin', {{
-    method: 'POST', headers: {{'Content-Type':'application/json'}}, body: JSON.stringify({{telefon: phone}})
-  }});
-  if (res.ok) {{ window.location.reload(); }}
-  else {{ const r = await res.json(); statusEl.textContent = r.detail || 'Xatolik yuz berdi.'; statusEl.style.color = '#E1477A'; }}
-}});
-</script>"""
-    return page_shell("Boshqaruv paneli — Nomalar.uz", "", body, nav_user(request))
-
-
-@app.post("/api/panel/block")
-def panel_block(form: VisitorActionForm, request: Request):
-    if not request_is_admin(request):
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    phone = normalize_phone(form.phone)
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("UPDATE visitors SET is_blocked = 1 WHERE phone = ?", (phone,))
-    conn.commit()
-    conn.close()
-    return {"ok": True}
-
-
-@app.post("/api/panel/unblock")
-def panel_unblock(form: VisitorActionForm, request: Request):
-    if not request_is_admin(request):
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    phone = normalize_phone(form.phone)
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("UPDATE visitors SET is_blocked = 0 WHERE phone = ?", (phone,))
-    conn.commit()
-    conn.close()
-    return {"ok": True}
-
-
-@app.post("/api/panel/add-admin")
-def panel_add_admin(form: AdminAddForm, request: Request):
-    if not request_is_admin(request):
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    phone = normalize_phone(form.telefon)
-    if len(phone) < 7:
-        raise HTTPException(status_code=400, detail="Telefon raqam noto'g'ri")
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("INSERT OR IGNORE INTO admins (phone) VALUES (?)", (phone,))
-    conn.commit()
-    conn.close()
-    return {"ok": True}
-
-
-@app.post("/api/panel/remove-admin")
-def panel_remove_admin(form: VisitorActionForm, request: Request):
-    if not request_is_admin(request):
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM admins")
-    total = cur.fetchone()[0]
-    if total <= 1:
+    try:
+        phone = normalize_phone(str(p.get("phone", "")))
+        if action == "block_visitor":
+            cur.execute("UPDATE visitors SET is_blocked = 1 WHERE phone = ?", (phone,))
+        elif action == "unblock_visitor":
+            cur.execute("UPDATE visitors SET is_blocked = 0 WHERE phone = ?", (phone,))
+        elif action == "toggle_pause":
+            cur.execute("SELECT value FROM settings WHERE key = 'site_paused'")
+            row = cur.fetchone()
+            _upsert_setting(cur, "site_paused", "0" if (row and row[0] == "1") else "1")
+        elif action == "add_admin":
+            if len(phone) < 7:
+                raise HTTPException(status_code=400, detail="Telefon raqam noto'g'ri")
+            role = p.get("role") if p.get("role") in ("owner", "helper") else "helper"
+            cur.execute(
+                "INSERT INTO admins (phone, role) VALUES (?, ?) "
+                "ON CONFLICT(phone) DO UPDATE SET role = excluded.role",
+                (phone, role),
+            )
+        elif action == "remove_admin":
+            cur.execute("SELECT role FROM admins WHERE phone = ?", (phone,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=400, detail="Bunday admin topilmadi")
+            if (row[0] or "owner") == "owner":
+                cur.execute("SELECT COUNT(*) FROM admins WHERE role = 'owner'")
+                if cur.fetchone()[0] <= 1:
+                    raise HTTPException(status_code=400, detail="Kamida bitta asosiy admin qolishi kerak")
+            cur.execute("DELETE FROM admins WHERE phone = ?", (phone,))
+            cur.execute("SELECT value FROM settings WHERE key = 'active_admin_phone'")
+            row = cur.fetchone()
+            if row and row[0] == phone:
+                _upsert_setting(cur, "active_admin_phone", "")
+        elif action in ("hide_page", "unhide_page"):
+            cur.execute(
+                "UPDATE pages SET hidden = ? WHERE slug = ?",
+                (1 if action == "hide_page" else 0, str(p.get("slug", ""))),
+            )
+        elif action == "delete_page":
+            cur.execute("DELETE FROM pages WHERE slug = ?", (str(p.get("slug", "")),))
+        elif action == "message_read":
+            cur.execute("UPDATE messages SET is_read = 1 WHERE id = ?", (int(p.get("id", 0)),))
+        elif action == "message_delete":
+            cur.execute("DELETE FROM messages WHERE id = ?", (int(p.get("id", 0)),))
+        elif action == "tier_features":
+            features = p.get("features", {}) or {}
+            for tier in TIERS:
+                cur.execute("DELETE FROM tier_features WHERE tier = ?", (tier,))
+                for feature in features.get(tier, []):
+                    if feature in FEATURES:
+                        cur.execute(
+                            "INSERT OR IGNORE INTO tier_features (tier, feature) VALUES (?, ?)",
+                            (tier, feature),
+                        )
+        elif action == "limit_config":
+            count, hours = int(p.get("count", 0)), int(p.get("hours", 0))
+            if not (1 <= count <= 100) or not (1 <= hours <= 72):
+                raise HTTPException(status_code=400, detail="Noma soni 1-100, soat 1-72 oralig'ida bo'lsin")
+            _upsert_setting(cur, "free_limit_count", str(count))
+            _upsert_setting(cur, "free_limit_hours", str(hours))
+        elif action == "set_subscription":
+            tier, days = str(p.get("tier", "")), int(p.get("days", 0))
+            if len(phone) < 7:
+                raise HTTPException(status_code=400, detail="Telefon raqam noto'g'ri")
+            if tier not in TIERS:
+                raise HTTPException(status_code=400, detail="Tarif noto'g'ri")
+            if not (1 <= days <= 3650):
+                raise HTTPException(status_code=400, detail="Muddat 1-3650 kun oralig'ida bo'lsin")
+            cur.execute(
+                "INSERT INTO subscriptions (phone, tier, expires_at) VALUES (?, ?, ?) "
+                "ON CONFLICT(phone) DO UPDATE SET tier = excluded.tier, expires_at = excluded.expires_at",
+                (phone, tier, int(time.time()) + days * 86400),
+            )
+        elif action == "remove_subscription":
+            cur.execute("DELETE FROM subscriptions WHERE phone = ?", (phone,))
+        else:
+            raise HTTPException(status_code=400, detail="Noma'lum harakat")
+        conn.commit()
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Ma'lumot noto'g'ri")
+    finally:
         conn.close()
-        raise HTTPException(status_code=400, detail="Kamida bitta admin qolishi kerak")
-    phone = normalize_phone(form.phone)
-    cur.execute("DELETE FROM admins WHERE phone = ?", (phone,))
+
+
+def log_admin(actor: str, role: str, summary: str, status: str) -> None:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO admin_log (ts, actor_phone, actor_role, summary, status) VALUES (?, ?, ?, ?, ?)",
+        (int(time.time()), actor, role, summary, status),
+    )
+    cur.execute("DELETE FROM admin_log WHERE id <= (SELECT MAX(id) FROM admin_log) - 500")
     conn.commit()
     conn.close()
-    return {"ok": True}
+
+
+def run_admin_action(request: Request, action: str, payload: dict):
+    role = request_admin_role(request)
+    if not role:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    if action not in ACTION_NAMES:
+        raise HTTPException(status_code=400, detail="Noma'lum harakat")
+    actor = get_auth_phone(request)
+    payload = dict(payload or {})
+    if role == "helper" and action == "add_admin":
+        payload["role"] = "helper"
+    summary = describe_action(action, payload)
+
+    if role == "owner":
+        perform_action(action, payload)
+        log_admin(actor, role, summary, "bajarildi")
+        return {"ok": True}
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO admin_requests (requester_phone, action, payload, summary, ts) VALUES (?, ?, ?, ?, ?)",
+        (actor, action, json.dumps(payload, ensure_ascii=False), summary, int(time.time())),
+    )
+    conn.commit()
+    conn.close()
+    log_admin(actor, role, summary, "so'rov yuborildi")
+    return JSONResponse(
+        status_code=202,
+        content={"ok": True, "pending": True, "detail": "So'rov asosiy adminga yuborildi"},
+    )
+
+
+class ActionForm(BaseModel):
+    action: str
+    payload: dict = {}
+
+
+class DecideForm(BaseModel):
+    id: int
+    approve: bool
 
 
 class TierFeaturesForm(BaseModel):
@@ -1877,87 +1917,1470 @@ class SubscriptionForm(BaseModel):
     days: int
 
 
+@app.post("/api/panel/action")
+def panel_action(form: ActionForm, request: Request):
+    return run_admin_action(request, form.action, form.payload)
+
+
 @app.post("/api/panel/tier-features")
 def panel_tier_features(form: TierFeaturesForm, request: Request):
-    if not request_is_admin(request):
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    for tier in TIERS:
-        cur.execute("DELETE FROM tier_features WHERE tier = ?", (tier,))
-        for feature in form.features.get(tier, []):
-            if feature in FEATURES:
-                cur.execute(
-                    "INSERT OR IGNORE INTO tier_features (tier, feature) VALUES (?, ?)", (tier, feature)
-                )
-    conn.commit()
-    conn.close()
-    return {"ok": True}
+    return run_admin_action(request, "tier_features", {"features": form.features})
 
 
 @app.post("/api/panel/limit-config")
 def panel_limit_config(form: LimitConfigForm, request: Request):
-    if not request_is_admin(request):
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    if not (1 <= form.count <= 100) or not (1 <= form.hours <= 72):
-        raise HTTPException(status_code=400, detail="Noma soni 1-100, soat 1-72 oralig'ida bo'lsin")
-    set_setting("free_limit_count", str(form.count))
-    set_setting("free_limit_hours", str(form.hours))
-    return {"ok": True}
+    return run_admin_action(request, "limit_config", {"count": form.count, "hours": form.hours})
 
 
 @app.post("/api/panel/set-subscription")
 def panel_set_subscription(form: SubscriptionForm, request: Request):
-    if not request_is_admin(request):
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    phone = normalize_phone(form.phone)
-    if len(phone) < 7:
-        raise HTTPException(status_code=400, detail="Telefon raqam noto'g'ri")
-    if form.tier not in TIERS:
-        raise HTTPException(status_code=400, detail="Tarif noto'g'ri")
-    if not (1 <= form.days <= 3650):
-        raise HTTPException(status_code=400, detail="Muddat 1-3650 kun oralig'ida bo'lsin")
-    expires = int(time.time()) + form.days * 86400
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO subscriptions (phone, tier, expires_at) VALUES (?, ?, ?) "
-        "ON CONFLICT(phone) DO UPDATE SET tier = excluded.tier, expires_at = excluded.expires_at",
-        (phone, form.tier, expires),
+    return run_admin_action(
+        request, "set_subscription", {"phone": form.phone, "tier": form.tier, "days": form.days}
     )
-    conn.commit()
-    conn.close()
-    return {"ok": True}
 
 
 @app.post("/api/panel/remove-subscription")
 def panel_remove_subscription(form: VisitorActionForm, request: Request):
-    if not request_is_admin(request):
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    return run_admin_action(request, "remove_subscription", {"phone": form.phone})
+
+
+@app.post("/api/panel/requests/decide")
+def panel_decide(form: DecideForm, request: Request):
+    if request_admin_role(request) != "owner":
+        raise HTTPException(status_code=403, detail="Faqat asosiy admin hal qila oladi")
+    actor = get_auth_phone(request)
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("DELETE FROM subscriptions WHERE phone = ?", (normalize_phone(form.phone),))
+    cur.execute(
+        "SELECT action, payload, summary, status FROM admin_requests WHERE id = ?", (form.id,)
+    )
+    row = cur.fetchone()
+    conn.close()
+    if not row or row[3] != "pending":
+        raise HTTPException(status_code=400, detail="So'rov topilmadi yoki allaqachon ko'rib chiqilgan")
+    action, payload_json, summary = row[0], row[1], row[2]
+
+    result = ""
+    if form.approve:
+        try:
+            perform_action(action, json.loads(payload_json))
+            new_status = "approved"
+        except HTTPException as e:
+            new_status = "failed"
+            result = str(e.detail)
+    else:
+        new_status = "rejected"
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE admin_requests SET status = ?, decided_at = ?, decided_by = ?, result = ? WHERE id = ?",
+        (new_status, int(time.time()), actor, result, form.id),
+    )
+    conn.commit()
+    conn.close()
+    labels = {"approved": "ruxsat berildi", "rejected": "rad etildi", "failed": "bajarib bo'lmadi"}
+    log_admin(actor, "owner", summary, labels[new_status])
+    return {"ok": True, "status": new_status, "detail": result}
+
+
+# ============================================================
+#  BOSHQARUV PANELI SAHIFASI
+# ============================================================
+
+PANEL_JS = r"""
+<style>
+.panel-stat { display:flex; justify-content:space-between; font-size:13.5px; padding:6px 0; border-bottom:1px solid var(--glass-border); }
+.panel-table { width:100%; border-collapse:collapse; font-size:13px; }
+.panel-table th { text-align:left; color:var(--ink-dim); font-weight:600; padding:6px 8px; border-bottom:1px solid var(--glass-border); white-space:nowrap; }
+.panel-table td { padding:6px 8px; border-bottom:1px solid var(--glass-border); vertical-align:top; }
+.panel-mini-btn { padding:6px 12px; font-size:12px; margin:2px 4px 2px 0; }
+.pm-input { font-family:'Inter',sans-serif; font-size:14px; background:var(--bg2); border:1px solid var(--glass-border); border-radius:12px; padding:10px 12px; color:var(--ink); }
+.panel-toast { position:fixed; top:84px; left:50%; transform:translateX(-50%); background:#16233B; color:#fff; font-size:13.5px; padding:12px 20px; border-radius:12px; z-index:50; box-shadow:0 10px 30px rgba(22,35,59,0.3); max-width:90vw; text-align:center; }
+</style>
+<script>
+(function () {
+  function toast(msg) {
+    var el = document.createElement('div');
+    el.className = 'panel-toast'; el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 4500);
+  }
+  var pendingMsg = null;
+  try { pendingMsg = sessionStorage.getItem('panel_toast'); sessionStorage.removeItem('panel_toast'); } catch (e) {}
+  if (pendingMsg) toast(pendingMsg);
+
+  var origFetch = window.fetch;
+  window.fetch = function (url) {
+    return origFetch.apply(this, arguments).then(function (res) {
+      if (res.status === 202 && String(url).indexOf('/api/panel/') === 0) {
+        try { sessionStorage.setItem('panel_toast', "So'rov asosiy adminga yuborildi. Ruxsat bergach bajariladi."); } catch (e) {}
+      }
+      return res;
+    });
+  };
+
+  function post(url, data) {
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) })
+      .then(function (res) { return res.json().catch(function () { return {}; }).then(function (r) { return { ok: res.ok, r: r }; }); });
+  }
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-action]');
+    if (b) {
+      var msg = b.getAttribute('data-confirm');
+      if (msg && !confirm(msg)) return;
+      var payload = {};
+      try { payload = JSON.parse(b.getAttribute('data-payload') || '{}'); } catch (x) {}
+      post('/api/panel/action', { action: b.getAttribute('data-action'), payload: payload }).then(function (o) {
+        if (o.ok) { window.location.reload(); } else { alert(o.r.detail || 'Xatolik yuz berdi'); }
+      });
+      return;
+    }
+    var d = e.target.closest('[data-decide]');
+    if (d) {
+      var parts = d.getAttribute('data-decide').split(':');
+      post('/api/panel/requests/decide', { id: parseInt(parts[0], 10), approve: parts[1] === '1' }).then(function (o) {
+        if (!o.ok) { alert(o.r.detail || 'Xatolik yuz berdi'); return; }
+        if (o.r.status === 'failed') { try { sessionStorage.setItem('panel_toast', "Bajarib bo'lmadi: " + (o.r.detail || '')); } catch (x) {} }
+        window.location.reload();
+      });
+    }
+  });
+
+  var af = document.getElementById('add-admin-form');
+  if (af) {
+    af.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var roleEl = document.getElementById('new-admin-role');
+      var st = document.getElementById('add-admin-status');
+      post('/api/panel/action', { action: 'add_admin', payload: { phone: document.getElementById('new-admin-phone').value, role: roleEl ? roleEl.value : 'helper' } }).then(function (o) {
+        if (o.ok) { window.location.reload(); } else { st.textContent = o.r.detail || 'Xatolik yuz berdi.'; st.style.color = '#E1477A'; }
+      });
+    });
+  }
+
+  var q = document.getElementById('v-search'), f = document.getElementById('v-filter');
+  function applyFilter() {
+    var term = (q.value || '').toLowerCase().trim();
+    var digits = term.replace(/[^0-9]/g, '');
+    var mode = f.value;
+    document.querySelectorAll('#v-body tr[data-q]').forEach(function (tr) {
+      var hay = tr.getAttribute('data-q');
+      var okS = !term || hay.indexOf(term) !== -1 || (digits.length > 0 && hay.indexOf(digits) !== -1);
+      var okM = mode === 'all' || tr.getAttribute('data-status') === mode;
+      tr.style.display = (okS && okM) ? '' : 'none';
+    });
+  }
+  if (q && f) { q.addEventListener('input', applyFilter); f.addEventListener('change', applyFilter); }
+})();
+</script>
+"""
+
+REQUEST_STATUS_LABELS = {
+    "pending": "Kutilmoqda", "approved": "Ruxsat berildi", "rejected": "Rad etildi", "failed": "Bajarib bo'lmadi",
+}
+
+
+def _pbtn(action: str, payload: dict, label: str, confirm_msg: str = "") -> str:
+    conf = f' data-confirm="{esc_attr(confirm_msg)}"' if confirm_msg else ""
+    return (
+        f'<button type="button" class="btn-outline panel-mini-btn" data-action="{action}" '
+        f'data-payload="{esc_attr(json.dumps(payload))}"{conf}>{label}</button>'
+    )
+
+
+def _pcard(title: str, inner: str) -> str:
+    return (
+        '<div class="benefit-card" style="margin-bottom:28px;overflow-x:auto;">'
+        f'<h3 style="margin-top:0;">{title}</h3>{inner}</div>'
+    )
+
+
+def _who(name, phone) -> str:
+    return escape_html(name) if name else phone
+
+
+@app.get("/panel", response_class=HTMLResponse)
+def panel_page(request: Request):
+    role = request_admin_role(request)
+    if not role:
+        return RedirectResponse("/kirish")
+    me = get_auth_phone(request)
+    is_owner = role == "owner"
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM pages")
+    total_pages = cur.fetchone()[0]
+    cur.execute("SELECT template_type, COUNT(*) FROM pages GROUP BY template_type ORDER BY COUNT(*) DESC")
+    by_type = cur.fetchall()
+    cur.execute("SELECT slug, template_type, created_at, hidden FROM pages ORDER BY id DESC LIMIT 40")
+    pages_list = cur.fetchall()
+    cur.execute("SELECT id, name, contact, matn, created_at, is_read FROM messages ORDER BY id DESC LIMIT 40")
+    messages_list = cur.fetchall()
+    cur.execute("SELECT COUNT(*) FROM messages WHERE is_read = 0")
+    unread = cur.fetchone()[0]
+    cur.execute(
+        "SELECT v.phone, v.is_blocked, v.created_at, v.last_seen_at, p.display_name, p.username "
+        "FROM visitors v LEFT JOIN profiles p ON p.phone = v.phone ORDER BY v.id DESC"
+    )
+    visitors = cur.fetchall()
+    cur.execute(
+        "SELECT a.phone, a.role, p.display_name FROM admins a "
+        "LEFT JOIN profiles p ON p.phone = a.phone ORDER BY a.id ASC"
+    )
+    admins = cur.fetchall()
+    cur.execute(
+        "SELECT r.id, r.requester_phone, r.summary, r.ts, p.display_name FROM admin_requests r "
+        "LEFT JOIN profiles p ON p.phone = r.requester_phone WHERE r.status = 'pending' ORDER BY r.id DESC"
+    )
+    pending_list = cur.fetchall()
+    if is_owner:
+        cur.execute(
+            "SELECT r.summary, r.status, r.ts, r.requester_phone, p.display_name FROM admin_requests r "
+            "LEFT JOIN profiles p ON p.phone = r.requester_phone WHERE r.status != 'pending' "
+            "ORDER BY r.id DESC LIMIT 15"
+        )
+    else:
+        cur.execute(
+            "SELECT r.summary, r.status, r.ts, r.requester_phone, NULL FROM admin_requests r "
+            "WHERE r.requester_phone = ? ORDER BY r.id DESC LIMIT 15",
+            (me,),
+        )
+    history = cur.fetchall()
+    cur.execute(
+        "SELECT l.ts, l.actor_phone, l.actor_role, l.summary, l.status, p.display_name FROM admin_log l "
+        "LEFT JOIN profiles p ON p.phone = l.actor_phone ORDER BY l.id DESC LIMIT 50"
+    )
+    log_rows_raw = cur.fetchall()
+    cur.execute(
+        "SELECT s.phone, s.tier, s.expires_at, p.display_name FROM subscriptions s "
+        "LEFT JOIN profiles p ON p.phone = s.phone WHERE s.expires_at > ? ORDER BY s.expires_at ASC",
+        (int(time.time()),),
+    )
+    sub_list = cur.fetchall()
+    conn.close()
+
+    paused = is_site_paused()
+    active_count = sum(1 for v in visitors if not v[1])
+    blocked_count = sum(1 for v in visitors if v[1])
+    empty = lambda cols: f'<tr><td colspan="{cols}" style="color:var(--ink-dim);">Hali yo\'q</td></tr>'
+
+    # --- statistika
+    def stat(title, value, color="var(--accent1)"):
+        return (
+            f'<div class="benefit-card"><h3 style="margin-top:0;">{title}</h3>'
+            f'<p style="font-size:28px;font-weight:800;color:{color};margin:0;">{value}</p></div>'
+        )
+
+    stats = (
+        stat("Jami nomalar", total_pages)
+        + stat("O'qilmagan xabarlar", unread)
+        + stat("Aktiv raqamlar", active_count, "#1E9E5A")
+        + stat("Bloklangan", blocked_count, "#E1477A")
+    )
+    if is_owner:
+        stats += stat("Kutilayotgan so'rovlar", len(pending_list), "#D98A00")
+
+    banner = ""
+    if not is_owner:
+        banner = (
+            '<div class="benefit-card" style="margin-bottom:24px;">Siz yordamchi adminsiz. Panelni to\'liq ko\'rasiz, '
+            "lekin har qanday o'zgartirish asosiy adminning ruxsatini kutadi.</div>"
+        )
+
+    # --- so'rovlar
+    requests_html = ""
+    if is_owner:
+        rows = "".join(
+            f'<tr><td>{_who(nm, ph)}</td><td>{escape_html(sm)}</td><td>{fmt_ts(ts)}</td>'
+            f'<td><button type="button" class="btn-login panel-mini-btn" style="border:none;" data-decide="{rid}:1">Ruxsat</button>'
+            f'<button type="button" class="btn-outline panel-mini-btn" data-decide="{rid}:0">Rad</button></td></tr>'
+            for rid, ph, sm, ts, nm in pending_list
+        ) or empty(4)
+        requests_html += _pcard(
+            "So'rovlar",
+            '<table class="panel-table"><thead><tr><th>Kim</th><th>Nima qilmoqchi</th><th>Qachon</th><th></th></tr></thead>'
+            f"<tbody>{rows}</tbody></table>",
+        )
+    hist_rows = "".join(
+        f"<tr><td>{escape_html(sm)}</td><td>{REQUEST_STATUS_LABELS.get(stt, stt)}</td>"
+        f"<td>{_who(nm, ph) if is_owner else ''}</td><td>{fmt_ts(ts)}</td></tr>"
+        for sm, stt, ts, ph, nm in history
+    ) or empty(4)
+    hist_title = "Ko'rib chiqilgan so'rovlar" if is_owner else "Mening so'rovlarim"
+    who_head = "<th>Kim</th>" if is_owner else "<th></th>"
+    requests_html += _pcard(
+        hist_title,
+        f'<table class="panel-table"><thead><tr><th>Harakat</th><th>Holati</th>{who_head}<th>Qachon</th></tr></thead>'
+        f"<tbody>{hist_rows}</tbody></table>",
+    )
+
+    # --- sayt holati
+    status_html = _pcard(
+        "Sayt holati",
+        f'<p style="font-size:13.5px;color:var(--ink-dim);margin:0 0 12px;">Sayt hozir: '
+        f'<strong style="color:{"#E1477A" if paused else "#1E9E5A"};">{"To\'xtatilgan" if paused else "Faol"}</strong></p>'
+        + _pbtn("toggle_pause", {}, "Saytni ishga tushirish" if paused else "Saytni to'xtatish"),
+    )
+
+    type_rows = "".join(
+        f'<div class="panel-stat"><span>{t}</span><strong>{c}</strong></div>' for t, c in by_type
+    ) or '<p style="color:var(--ink-dim);font-size:13px;">Hali yaratilgan noma yo\'q.</p>'
+    types_html = _pcard("Noma turlari bo'yicha", f'<div style="display:flex;flex-direction:column;gap:6px;">{type_rows}</div>')
+
+    # --- nomalar
+    page_rows = ""
+    for slug, ttype, created, hidden in pages_list:
+        state = '<span style="color:#E1477A;">Yashirin</span>' if hidden else "Ochiq"
+        toggle = _pbtn("unhide_page", {"slug": slug}, "Ko'rsatish") if hidden else _pbtn("hide_page", {"slug": slug}, "Yashirish")
+        page_rows += (
+            f'<tr><td><a href="/n/{slug}" target="_blank">{slug}</a></td><td>{ttype}</td><td>{state}</td><td>{created}</td>'
+            f'<td>{toggle}{_pbtn("delete_page", {"slug": slug}, "O\'chirish", "Nomani butunlay o\'chirishni tasdiqlaysizmi?")}</td></tr>'
+        )
+    pages_html = _pcard(
+        "Yaratilgan nomalar (oxirgi 40 ta)",
+        '<table class="panel-table"><thead><tr><th>Slug</th><th>Turi</th><th>Holati</th><th>Sana</th><th></th></tr></thead>'
+        f"<tbody>{page_rows or empty(5)}</tbody></table>",
+    )
+
+    # --- aloqa xabarlari
+    msg_rows = ""
+    for mid, nm, contact, matn, created, is_read in messages_list:
+        weight = "" if is_read else "font-weight:700;"
+        read_btn = "" if is_read else _pbtn("message_read", {"id": mid}, "O'qildi")
+        msg_rows += (
+            f'<tr style="{weight}"><td>{escape_html(nm)}</td><td>{escape_html(contact)}</td><td>{escape_html(matn)}</td>'
+            f'<td>{created}</td><td>{read_btn}{_pbtn("message_delete", {"id": mid}, "O\'chirish", "Xabarni o\'chirasizmi?")}</td></tr>'
+        )
+    messages_html = _pcard(
+        "Aloqa xabarlari (oxirgi 40 ta)",
+        '<table class="panel-table"><thead><tr><th>Ism</th><th>Kontakt</th><th>Xabar</th><th>Sana</th><th></th></tr></thead>'
+        f"<tbody>{msg_rows or empty(5)}</tbody></table>",
+    )
+
+    # --- kirgan raqamlar (qidiruv va filtr bilan)
+    v_rows = ""
+    for phone, blocked, created, last_seen, dname, uname in visitors:
+        label = escape_html(dname or "-") + (f" (@{escape_html(uname)})" if uname else "")
+        badge = '<span style="color:#E1477A;font-weight:600;">Bloklangan</span>' if blocked else '<span style="color:#1E9E5A;font-weight:600;">Aktiv</span>'
+        action = _pbtn("unblock_visitor", {"phone": phone}, "Blokdan chiqarish") if blocked else _pbtn("block_visitor", {"phone": phone}, "Bloklash")
+        hay = esc_attr(f"{phone} {dname or ''} {uname or ''}".lower())
+        v_rows += (
+            f'<tr data-q="{hay}" data-status="{"blocked" if blocked else "active"}">'
+            f"<td>{phone}</td><td>{label}</td><td>{badge}</td><td>{created}</td><td>{last_seen}</td><td>{action}</td></tr>"
+        )
+    visitors_html = _pcard(
+        "Kirgan raqamlar",
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">'
+        '<input type="search" id="v-search" class="pm-input" placeholder="Raqam, name yoki username qidirish" style="flex:1;min-width:180px;">'
+        '<select id="v-filter" class="pm-input"><option value="all">Hammasi</option>'
+        '<option value="active">Aktiv</option><option value="blocked">Bloklangan</option></select></div>'
+        '<table class="panel-table"><thead><tr><th>Raqam</th><th>Name</th><th>Holati</th><th>Birinchi kirgan</th><th>Oxirgi faollik</th><th></th></tr></thead>'
+        f'<tbody id="v-body">{v_rows or empty(6)}</tbody></table>',
+    )
+
+    # --- premium bo'limi (tarif imkoniyatlari, limit, obunalar)
+    lim_count, lim_hours = get_limit_config()
+    tier_headers = "".join(
+        f'<th>{t["name"]}<br><span style="font-weight:400;">{t["price"]} / {t["period"]}</span></th>' for t in TIERS.values()
+    )
+    feature_rows = ""
+    for fkey, flabel in FEATURES.items():
+        cells = "".join(
+            f'<td><input type="checkbox" data-tier="{tkey}" data-feature="{fkey}" {"checked" if fkey in get_tier_features(tkey) else ""}></td>'
+            for tkey in TIERS
+        )
+        feature_rows += f"<tr><td>{flabel}</td>{cells}</tr>"
+    tier_options = "".join(f'<option value="{k}">{t["name"]}</option>' for k, t in TIERS.items())
+    sub_rows = "".join(
+        f'<tr><td>{ph}</td><td>{escape_html(nm or "-")}</td><td>{TIERS.get(tr, {}).get("name", tr)}</td>'
+        f'<td>{fmt_ts(exp)}</td><td><button type="button" class="btn-outline panel-mini-btn" onclick="removeSub(\'{ph}\')">Olib tashlash</button></td></tr>'
+        for ph, tr, exp, nm in sub_list
+    ) or empty(5)
+    premium_html = (
+        PANEL_PREMIUM_TEMPLATE
+        .replace("%%TIER_HEADERS%%", tier_headers)
+        .replace("%%FEATURE_ROWS%%", feature_rows)
+        .replace("%%LIMIT_COUNT%%", str(lim_count))
+        .replace("%%LIMIT_HOURS%%", str(lim_hours))
+        .replace("%%TIER_OPTIONS%%", tier_options)
+        .replace("%%TIER_DAYS_JSON%%", json.dumps({k: t["days"] for k, t in TIERS.items()}))
+        .replace("%%SUB_ROWS%%", sub_rows)
+    )
+
+    # --- adminlar
+    admin_rows = "".join(
+        f'<tr><td>{ph}</td><td>{escape_html(nm or "-")}</td><td>{"Asosiy" if (rl or "owner") == "owner" else "Yordamchi"}</td>'
+        f'<td>{_pbtn("remove_admin", {"phone": ph}, "O\'chirish", "Bu adminni o\'chirishni tasdiqlaysizmi?")}</td></tr>'
+        for ph, rl, nm in admins
+    )
+    role_select = (
+        '<select id="new-admin-role" class="pm-input"><option value="helper">Yordamchi</option>'
+        '<option value="owner">Asosiy</option></select>'
+        if is_owner
+        else ""
+    )
+    admins_html = _pcard(
+        "Adminlar",
+        '<table class="panel-table" style="margin-bottom:14px;"><thead><tr><th>Raqam</th><th>Name</th><th>Roli</th><th></th></tr></thead>'
+        f"<tbody>{admin_rows}</tbody></table>"
+        '<form id="add-admin-form" style="display:flex;gap:8px;flex-wrap:wrap;">'
+        '<input type="text" id="new-admin-phone" placeholder="+998 90 123 45 67" required class="pm-input" style="flex:1;min-width:160px;">'
+        f'{role_select}<button type="submit" class="btn-outline">Admin qo\'shish</button></form>'
+        '<p id="add-admin-status" style="font-size:13px;color:var(--ink-dim);margin:8px 0 0;"></p>',
+    )
+
+    # --- jurnal
+    log_rows = "".join(
+        f'<tr><td>{fmt_ts(ts)}</td><td>{_who(nm, ph)} <span style="color:var(--ink-dim);">({"asosiy" if rl == "owner" else "yordamchi"})</span></td>'
+        f"<td>{escape_html(sm)}</td><td>{escape_html(stt)}</td></tr>"
+        for ts, ph, rl, sm, stt, nm in log_rows_raw
+    )
+    log_html = _pcard(
+        "Harakatlar jurnali (oxirgi 50 ta)",
+        '<table class="panel-table"><thead><tr><th>Qachon</th><th>Kim</th><th>Nima</th><th>Natija</th></tr></thead>'
+        f"<tbody>{log_rows or empty(4)}</tbody></table>",
+    )
+
+    body = (
+        '<div class="page-wrap" style="max-width:980px;">'
+        '<div class="page-header" style="text-align:left;"><p class="eyebrow">Admin</p>'
+        '<h1 class="section-title" style="margin-bottom:4px;">Boshqaruv paneli</h1>'
+        '<p class="section-sub" style="margin:0;">Sayt statistikasi va boshqaruv, faqat adminlarga ko\'rinadi.</p></div>'
+        + banner
+        + f'<div class="benefit-grid" style="margin-bottom:32px;">{stats}</div>'
+        + requests_html
+        + status_html
+        + types_html
+        + pages_html
+        + messages_html
+        + visitors_html
+        + premium_html
+        + admins_html
+        + log_html
+        + '<form method="post" action="/api/chiqish"><button type="submit" class="btn-outline" '
+        'style="color:#E1477A;border-color:#E1477A;">Chiqish</button></form></div>'
+        + PANEL_JS
+    )
+    return page_shell("Boshqaruv paneli — Nomalar.uz", "", body, nav_user(request))
+
+
+# ============================================================
+#  VOSITALAR (FAQAT MAX TARIFI): LOGOTIP YASASH
+# ============================================================
+
+TOOL_FEATURE = {"logo": "logo_maker"}
+MAX_PROJECT_BYTES = 1_500_000
+MAX_PROJECTS_PER_KIND = 30
+
+
+def tools_locked_response(request: Request):
+    body = (
+        '<div class="page-wrap" style="max-width:520px;text-align:center;padding-top:70px;">'
+        '<h1 class="section-title">Bu vosita sizning tarifingizda mavjud emas</h1>'
+        '<p class="section-sub">Vositalar faqat Max tarifida ochiladi.</p>'
+        '<div style="margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">'
+        '<a class="btn-login" href="/tariflar">Tariflarni ko\'rish</a>'
+        '<a class="btn-outline" href="/aloqa">Aloqa</a></div></div>'
+    )
+    return HTMLResponse(page_shell("Vositalar — Nomalar.uz", "tools", body, nav_user(request)), status_code=403)
+
+
+@app.get("/vositalar", response_class=HTMLResponse)
+def tools_hub(request: Request):
+    maint = maintenance_or_none()
+    if maint:
+        return maint
+    if not request_is_authenticated(request):
+        return RedirectResponse("/kirish?next=/vositalar")
+    cards = ""
+    if user_can_use(request, "logo_maker"):
+        cards += (
+            '<a class="benefit-card" href="/vositalar/logotip" style="text-decoration:none;color:inherit;display:block;">'
+            + icon_badge("sparkle", 24)
+            + "<h3>Logotip yasash</h3>"
+            "<p>Matn, shakl va ikonkalarni sichqoncha bilan joylashtirib, o'z logotipingizni yarating va rasm qilib yuklab oling.</p></a>"
+        )
+    if not cards:
+        return tools_locked_response(request)
+    body = (
+        '<div class="page-wrap"><div class="page-header"><p class="eyebrow">Max</p>'
+        '<h1 class="section-title">Vositalar</h1>'
+        '<p class="section-sub">Max tarifi uchun maxsus vositalar.</p></div>'
+        f'<div class="benefit-grid">{cards}</div></div>'
+    )
+    return page_shell("Vositalar — Nomalar.uz", "tools", body, nav_user(request))
+
+
+@app.get("/vositalar/logotip", response_class=HTMLResponse)
+def logo_editor_page(request: Request, id: int = 0):
+    maint = maintenance_or_none()
+    if maint:
+        return maint
+    if not request_is_authenticated(request):
+        return RedirectResponse("/kirish?next=/vositalar/logotip")
+    if not user_can_use(request, "logo_maker"):
+        return tools_locked_response(request)
+    body = LOGO_EDITOR_TEMPLATE.replace("%%PROJECT_ID%%", str(max(int(id), 0)))
+    return page_shell("Logotip yasash — Nomalar.uz", "tools", body, nav_user(request), fx=False)
+
+
+class ProjectSaveForm(BaseModel):
+    id: int = 0
+    kind: str
+    title: str
+    data: str
+    thumb: str = ""
+
+
+def _tool_guard(request: Request, kind: str) -> str:
+    if not request_is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Avval tizimga kiring")
+    feature = TOOL_FEATURE.get(kind)
+    if not feature:
+        raise HTTPException(status_code=400, detail="Noma'lum vosita")
+    if not user_can_use(request, feature):
+        raise HTTPException(status_code=403, detail="Bu vosita sizning tarifingizda mavjud emas")
+    return get_auth_phone(request)
+
+
+def _valid_thumb(thumb: str) -> str:
+    if not thumb:
+        return ""
+    if not thumb.startswith("data:image/png;base64,") or len(thumb) > 120000:
+        raise HTTPException(status_code=400, detail="Kichik rasm noto'g'ri")
+    try:
+        raw = base64.b64decode(thumb.split(",", 1)[1], validate=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Kichik rasm noto'g'ri")
+    if not raw.startswith(b"\x89PNG"):
+        raise HTTPException(status_code=400, detail="Kichik rasm noto'g'ri")
+    return thumb
+
+
+@app.post("/api/projects/save")
+def project_save(form: ProjectSaveForm, request: Request):
+    phone = _tool_guard(request, form.kind)
+    if len(form.data) > MAX_PROJECT_BYTES:
+        raise HTTPException(status_code=400, detail="Loyiha juda katta (rasmlarni kichikroq qiling)")
+    try:
+        doc = json.loads(form.data)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Ma'lumot noto'g'ri")
+    if not isinstance(doc, dict) or not isinstance(doc.get("items"), list) or len(doc["items"]) > 300:
+        raise HTTPException(status_code=400, detail="Ma'lumot noto'g'ri")
+    for dim in ("w", "h"):
+        v = doc.get(dim)
+        if not isinstance(v, (int, float)) or not (100 <= v <= 4000):
+            raise HTTPException(status_code=400, detail="Maydon o'lchami noto'g'ri")
+    title = re.sub(r"\s+", " ", form.title or "").strip()[:60] or "Nomsiz loyiha"
+    thumb = _valid_thumb(form.thumb)
+    now = int(time.time())
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    if form.id:
+        cur.execute(
+            "UPDATE projects SET title = ?, data = ?, thumb = ?, updated_at = ? "
+            "WHERE id = ? AND owner_phone = ? AND kind = ?",
+            (title, form.data, thumb, now, form.id, phone, form.kind),
+        )
+        if cur.rowcount == 0:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+        pid = form.id
+    else:
+        cur.execute(
+            "SELECT COUNT(*) FROM projects WHERE owner_phone = ? AND kind = ?", (phone, form.kind)
+        )
+        if cur.fetchone()[0] >= MAX_PROJECTS_PER_KIND:
+            conn.close()
+            raise HTTPException(status_code=400, detail=f"Eng ko'pi bilan {MAX_PROJECTS_PER_KIND} ta loyiha saqlash mumkin")
+        cur.execute(
+            "INSERT INTO projects (owner_phone, kind, title, data, thumb, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (phone, form.kind, title, form.data, thumb, now, now),
+        )
+        pid = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return {"ok": True, "id": pid}
+
+
+@app.get("/api/projects")
+def project_list(request: Request, kind: str = "logo"):
+    phone = _tool_guard(request, kind)
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, title, thumb, updated_at FROM projects "
+        "WHERE owner_phone = ? AND kind = ? AND hidden = 0 ORDER BY updated_at DESC",
+        (phone, kind),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return {"items": [{"id": r[0], "title": r[1], "thumb": r[2] or "", "updated": fmt_ts(r[3] or 0)} for r in rows]}
+
+
+@app.get("/api/projects/{pid}")
+def project_get(pid: int, request: Request, kind: str = "logo"):
+    phone = _tool_guard(request, kind)
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT title, data FROM projects WHERE id = ? AND owner_phone = ? AND kind = ? AND hidden = 0",
+        (pid, phone, kind),
+    )
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    return {"id": pid, "title": row[0], "data": row[1]}
+
+
+@app.post("/api/projects/{pid}/delete")
+def project_delete(pid: int, request: Request, kind: str = "logo"):
+    phone = _tool_guard(request, kind)
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM projects WHERE id = ? AND owner_phone = ? AND kind = ?", (pid, phone, kind))
     conn.commit()
     conn.close()
     return {"ok": True}
 
 
-@app.post("/api/panel/toggle-pause")
-def panel_toggle_pause(request: Request):
-    if not request_is_admin(request):
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    paused = is_site_paused()
-    new_value = "0" if paused else "1"
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO settings (key, value) VALUES ('site_paused', ?) "
-        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        (new_value,),
-    )
-    conn.commit()
-    conn.close()
-    return {"ok": True, "paused": new_value == "1"}
+LOGO_EDITOR_TEMPLATE = r"""<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;700&family=Inter:wght@400;700&family=Montserrat:wght@400;700&family=Poppins:wght@400;700&family=Raleway:wght@400;700&family=Playfair+Display:wght@400;700&family=Oswald:wght@400;700&family=Bebas+Neue&family=Pacifico&family=Lobster&family=Caveat:wght@400;700&display=swap" rel="stylesheet">
+<style>
+.lg-wrap { max-width: 1240px; margin: 0 auto; padding: 18px 16px 60px; }
+.lg-top { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 14px; }
+.lg-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.lg-btn { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; background: #fff; color: var(--ink); border: 1px solid var(--glass-border); border-radius: 10px; padding: 8px 12px; cursor: pointer; line-height: 1.2; }
+.lg-btn:hover { border-color: var(--accent1); color: var(--accent1); }
+.lg-btn.primary { background: var(--accent-grad); color: #fff; border-color: transparent; }
+.lg-btn:disabled { opacity: .45; cursor: default; }
+.lg-sel { font-family: 'Inter', sans-serif; font-size: 13px; background: #fff; border: 1px solid var(--glass-border); border-radius: 10px; padding: 8px 10px; color: var(--ink); }
+.lg-title { font-family: 'Inter', sans-serif; font-size: 13px; background: #fff; border: 1px solid var(--glass-border); border-radius: 10px; padding: 8px 10px; color: var(--ink); width: 170px; }
+.lg-menu { position: relative; }
+.lg-pop { display: none; position: absolute; top: 100%; left: 0; margin-top: 6px; background: #fff; border: 1px solid var(--glass-border); border-radius: 12px; padding: 8px; box-shadow: 0 14px 34px rgba(22,35,59,.16); z-index: 30; min-width: 170px; }
+.lg-pop.open { display: flex; flex-direction: column; gap: 4px; }
+.lg-pop.grid.open { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; width: 296px; }
+.lg-opt { text-align: left; font-family: 'Inter', sans-serif; font-size: 13px; background: transparent; border: none; border-radius: 8px; padding: 8px 10px; cursor: pointer; color: var(--ink); }
+.lg-opt:hover { background: rgba(47,111,237,.08); color: var(--accent1); }
+.lg-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--glass-border); border-radius: 8px; cursor: pointer; color: var(--ink); padding: 0; }
+.lg-icon:hover { border-color: var(--accent1); color: var(--accent1); }
+.lg-icon svg { width: 22px; height: 22px; }
+.lg-main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .lg-main { grid-template-columns: 1fr; } }
+.lg-stage { background: #fff; border: 1px solid var(--glass-border); border-radius: 16px; padding: 14px; overflow: auto; display: flex; justify-content: center; }
+.lg-board { background-color: #fff; background-image: linear-gradient(45deg, #e9eff9 25%, transparent 25%, transparent 75%, #e9eff9 75%), linear-gradient(45deg, #e9eff9 25%, transparent 25%, transparent 75%, #e9eff9 75%); background-size: 20px 20px; background-position: 0 0, 10px 10px; line-height: 0; max-width: 100%; box-shadow: 0 6px 24px rgba(22,35,59,.12); }
+#lg-canvas { max-width: 100%; height: auto; touch-action: none; display: block; }
+.lg-panel { background: #fff; border: 1px solid var(--glass-border); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.lg-note { font-size: 13px; color: var(--ink-dim); line-height: 1.5; }
+.lg-f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-dim); font-weight: 600; }
+.lg-f input[type=text], .lg-f input[type=number], .lg-f select, .lg-f textarea { width: 100%; box-sizing: border-box; font-family: 'Inter', sans-serif; font-size: 13px; background: var(--bg2); border: 1px solid var(--glass-border); border-radius: 8px; padding: 7px 9px; color: var(--ink); }
+.lg-f input[type=color] { width: 100%; height: 32px; padding: 2px; border: 1px solid var(--glass-border); border-radius: 8px; background: #fff; }
+.lg-f input[type=range] { width: 100%; }
+.lg-row { display: flex; gap: 8px; }
+.lg-row > * { flex: 1; min-width: 0; }
+.lg-chk { flex-direction: row; align-items: center; gap: 8px; }
+.lg-hide { display: none !important; }
+.lg-sep { border: none; border-top: 1px solid var(--glass-border); margin: 4px 0; width: 100%; }
+.lg-status { font-size: 13px; min-height: 18px; }
+.lg-modal { display: none; position: fixed; inset: 0; background: rgba(22,35,59,.45); z-index: 60; align-items: center; justify-content: center; padding: 20px; }
+.lg-modal.open { display: flex; }
+.lg-modal-in { background: #fff; border-radius: 18px; padding: 20px; max-width: 760px; width: 100%; max-height: 84vh; overflow: auto; }
+.lg-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-top: 14px; }
+.lg-card { border: 1px solid var(--glass-border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.lg-card img { width: 100%; height: 110px; object-fit: contain; background: #f1f5fb; border-radius: 8px; }
+.lg-card-t { font-size: 13px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lg-card-s { font-size: 11px; color: var(--ink-dim); }
+</style>
+
+<div class="lg-wrap">
+  <div class="lg-top">
+    <div class="lg-group">
+      <button type="button" class="lg-btn" data-add="text">Matn</button>
+      <div class="lg-menu"><button type="button" class="lg-btn" data-pop="pop-shape">Shakl</button><div class="lg-pop" id="pop-shape"></div></div>
+      <div class="lg-menu"><button type="button" class="lg-btn" data-pop="pop-icon">Ikonka</button><div class="lg-pop grid" id="pop-icon"></div></div>
+      <label class="lg-btn" for="lg-image">Rasm</label><input type="file" id="lg-image" accept="image/*" class="lg-hide">
+      <div class="lg-menu"><button type="button" class="lg-btn" data-pop="pop-tpl">Andoza</button><div class="lg-pop" id="pop-tpl"></div></div>
+    </div>
+    <div class="lg-group">
+      <button type="button" class="lg-btn" id="lg-undo">Bekor qilish</button>
+      <button type="button" class="lg-btn" id="lg-redo">Qaytarish</button>
+    </div>
+    <div class="lg-group">
+      <select class="lg-sel" id="lg-size"></select>
+      <label class="lg-btn" style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="lg-bg-on"> Fon rangi <input type="color" id="lg-bg" value="#FFFFFF" style="width:26px;height:22px;padding:0;border:none;background:none;"></label>
+    </div>
+    <div class="lg-group">
+      <input type="text" class="lg-title" id="lg-title" maxlength="60" placeholder="Logotip nomi">
+      <button type="button" class="lg-btn primary" id="lg-save">Saqlash</button>
+      <button type="button" class="lg-btn" id="lg-mine">Mening logotiplarim</button>
+      <select class="lg-sel" id="lg-scale"><option value="1">1x</option><option value="2" selected>2x</option><option value="3">3x</option></select>
+      <button type="button" class="lg-btn primary" id="lg-export">PNG yuklab olish</button>
+    </div>
+    <span class="lg-status" id="lg-status"></span>
+  </div>
+
+  <div class="lg-main">
+    <div class="lg-stage"><div class="lg-board"><canvas id="lg-canvas" width="800" height="800"></canvas></div></div>
+    <div class="lg-panel" id="lg-panel">
+      <div class="lg-note" id="lg-empty">Element tanlang yoki yuqoridan yangisini qo'shing. Sichqoncha bilan sudrab joyiga qo'yasiz, burchakdagi kvadratlar bilan kattalashtirasiz, yuqoridagi doira bilan aylantirasiz. Delete tugmasi o'chiradi.</div>
+      <div id="lg-props" class="lg-hide" style="display:flex;flex-direction:column;gap:10px;">
+        <label class="lg-f" data-for="text"><span>Matn</span><textarea data-prop="text" data-k="text" rows="2"></textarea></label>
+        <label class="lg-f" data-for="text"><span>Shrift</span><select data-prop="font" data-k="text" id="lg-font"></select></label>
+        <div class="lg-row" data-for="text">
+          <label class="lg-f"><span>Hajmi</span><input type="number" data-prop="size" data-k="num" min="8" max="600"></label>
+          <label class="lg-f"><span>Qalinligi</span><select data-prop="weight" data-k="num"><option value="400">Oddiy</option><option value="700">Qalin</option></select></label>
+        </div>
+        <div class="lg-row" data-for="text">
+          <label class="lg-f lg-chk"><input type="checkbox" data-prop="italic" data-k="bool"><span>Qiyshiq</span></label>
+          <label class="lg-f"><span>Harf oralig'i</span><input type="number" data-prop="spacing" data-k="num" min="-10" max="80"></label>
+        </div>
+        <label class="lg-f" data-for="text shape icon"><span id="lg-fill-label">Rang</span><input type="color" data-prop="fill" data-k="text"></label>
+        <label class="lg-f lg-chk" data-for="icon"><input type="checkbox" data-prop="fillOn" data-k="bool"><span>Ikonka ichini bo'yash</span></label>
+        <label class="lg-f lg-chk" data-for="text shape"><input type="checkbox" data-prop="grad" data-k="bool"><span>Gradient</span></label>
+        <label class="lg-f" data-for="text shape" data-cond="grad"><span>Ikkinchi rang</span><input type="color" data-prop="fill2" data-k="text"></label>
+        <div class="lg-row" data-for="text shape icon">
+          <label class="lg-f"><span>Kontur rangi</span><input type="color" data-prop="stroke" data-k="text"></label>
+          <label class="lg-f"><span>Kontur qalinligi</span><input type="number" data-prop="strokeW" data-k="num" min="0" max="60" step="0.5"></label>
+        </div>
+        <label class="lg-f" data-for="shape" data-cond="rect"><span>Burchak yumaloqligi</span><input type="range" data-prop="radius" data-k="num" min="0" max="200"></label>
+        <label class="lg-f" data-for="text shape icon image"><span>Shaffoflik</span><input type="range" data-prop="opacity" data-k="num" min="0.05" max="1" step="0.05"></label>
+        <label class="lg-f lg-chk" data-for="text shape icon image"><input type="checkbox" data-prop="shadow" data-k="bool"><span>Soya</span></label>
+        <div data-for="text shape icon image" data-cond="shadow" style="display:flex;flex-direction:column;gap:8px;">
+          <div class="lg-row">
+            <label class="lg-f"><span>Soya rangi</span><input type="color" data-prop="sColor" data-k="text"></label>
+            <label class="lg-f"><span>Zichligi</span><input type="range" data-prop="sA" data-k="num" min="0.05" max="1" step="0.05"></label>
+          </div>
+          <div class="lg-row">
+            <label class="lg-f"><span>Xiralik</span><input type="number" data-prop="sBlur" data-k="num" min="0" max="80"></label>
+            <label class="lg-f"><span>Siljish X</span><input type="number" data-prop="sX" data-k="num" min="-80" max="80"></label>
+            <label class="lg-f"><span>Siljish Y</span><input type="number" data-prop="sY" data-k="num" min="-80" max="80"></label>
+          </div>
+        </div>
+        <hr class="lg-sep">
+        <div class="lg-row"><button type="button" class="lg-btn" data-layer="up">Oldinga</button><button type="button" class="lg-btn" data-layer="down">Orqaga</button></div>
+        <div class="lg-row"><button type="button" class="lg-btn" data-layer="top">Eng oldinga</button><button type="button" class="lg-btn" data-layer="bottom">Eng orqaga</button></div>
+        <div class="lg-row"><button type="button" class="lg-btn" id="lg-dup">Nusxa</button><button type="button" class="lg-btn" id="lg-del" style="color:#E1477A;">O'chirish</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="lg-modal" id="lg-modal">
+  <div class="lg-modal-in">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <h3 style="margin:0;font-family:'Sora',sans-serif;font-size:18px;">Mening logotiplarim</h3>
+      <button type="button" class="lg-btn" id="lg-modal-close">Yopish</button>
+    </div>
+    <div class="lg-list" id="lg-list"></div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var PROJECT_ID = %%PROJECT_ID%%;
+  var DRAFT_KEY = 'nomalar_logo_draft';
+  var FONTS = ['Sora', 'Inter', 'Montserrat', 'Poppins', 'Raleway', 'Playfair Display', 'Oswald', 'Bebas Neue', 'Pacifico', 'Lobster', 'Caveat'];
+  var SHAPES = [['rect', 'Kvadrat'], ['circle', 'Doira'], ['triangle', 'Uchburchak'], ['star', 'Yulduz'], ['hex', 'Olti burchak'], ['diamond', 'Romb'], ['heart', 'Yurak'], ['line', 'Chiziq']];
+  var SIZES = [['800x800', 'Kvadrat 800x800'], ['1200x400', 'Keng 1200x400'], ['1000x600', 'Tortburchak 1000x600'], ['600x800', 'Tik 600x800']];
+  var ICONS = {
+    heart: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
+    star: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
+    bolt: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+    home: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10',
+    user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+    camera: 'M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+    music: 'M9 18V5l12-2v13 M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0z M21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+    globe: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z',
+    shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+    coffee: 'M18 8h1a4 4 0 0 1 0 8h-1 M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z M6 1v3 M10 1v3 M14 1v3',
+    sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z M12 1v2 M12 21v2 M4.22 4.22l1.42 1.42 M18.36 18.36l1.42 1.42 M1 12h2 M21 12h2 M4.22 19.78l1.42-1.42 M18.36 5.64l1.42-1.42',
+    moon: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z',
+    crown: 'M2 18h20 M3 18L2 7l5 4 5-7 5 7 5-4-1 11',
+    flame: 'M12 2c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z',
+    gem: 'M6 3h12l4 6-10 13L2 9z M2 9h20 M12 22L8 9l4-6 4 6z',
+    leaf: 'M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12',
+    book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
+    mail: 'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6',
+    pin: 'M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+    cart: 'M9 22a1 1 0 1 0 0-2 1 1 0 0 0 0 2z M20 22a1 1 0 1 0 0-2 1 1 0 0 0 0 2z M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6',
+    check: 'M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4L12 14.01l-3-3',
+    code: 'M16 18l6-6-6-6 M8 6l-6 6 6 6',
+    briefcase: 'M4 7h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16'
+  };
+
+  var canvas = document.getElementById('lg-canvas');
+  var ctx = canvas.getContext('2d');
+  var doc = { w: 800, h: 800, bg: null, items: [] };
+  var sel = null, drag = null, guides = { v: false, h: false };
+  var imgCache = {}, fontReq = {}, idCounter = 1;
+  var hist = [], hpos = -1, projectId = PROJECT_ID || 0;
+  var rafPending = false, keyTimer = null, draftTimer = null, statusTimer = null;
+
+  function el(id) { return document.getElementById(id); }
+  function uid() { return 'i' + (idCounter++); }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function getItem(id) { for (var i = 0; i < doc.items.length; i++) { if (doc.items[i].id === id) return doc.items[i]; } return null; }
+  function selItem() { return sel ? getItem(sel) : null; }
+  function hexToRgba(hex, a) {
+    var h = String(hex || '#000000').replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    if (isNaN(n)) n = 0;
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+  function status(msg, isErr) {
+    var s = el('lg-status');
+    s.textContent = msg; s.style.color = isErr ? '#E1477A' : '#1E9E5A';
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(function () { s.textContent = ''; }, 3800);
+  }
+
+  // ---------- element yaratish ----------
+  function base(type, extra) {
+    var it = { id: uid(), type: type, x: doc.w / 2, y: doc.h / 2, rot: 0, opacity: 1, shadow: false, sColor: '#000000', sA: 0.35, sBlur: 12, sX: 0, sY: 6 };
+    for (var k in extra) { it[k] = extra[k]; }
+    return it;
+  }
+  function newText(extra) {
+    return base('text', Object.assign({ text: 'Logotip', font: 'Sora', size: 96, weight: 700, italic: false, spacing: 0, fill: '#2F6FED', grad: false, fill2: '#7DB2FF', stroke: '#16233B', strokeW: 0 }, extra || {}));
+  }
+  function newShape(kind, extra) {
+    var line = kind === 'line';
+    return base('shape', Object.assign({ kind: kind, w: line ? 320 : 220, h: line ? 10 : 220, fill: '#2F6FED', grad: false, fill2: '#7DB2FF', stroke: '#16233B', strokeW: 0, radius: 0 }, extra || {}));
+  }
+  function newIcon(key, extra) {
+    return base('icon', Object.assign({ key: key, w: 160, h: 160, stroke: '#2F6FED', strokeW: 2, fillOn: false, fill: '#2F6FED' }, extra || {}));
+  }
+  function addItem(it) {
+    doc.items.push(it); sel = it.id;
+    ensureFont(it); syncPanel(); render(); snapshot();
+    return it;
+  }
+
+  // ---------- shrift ----------
+  function fontStr(it, size) { return (it.italic ? 'italic ' : '') + it.weight + ' ' + (size || it.size) + 'px "' + it.font + '", sans-serif'; }
+  function ensureFont(it) {
+    if (it.type !== 'text' || !document.fonts || !document.fonts.check) return;
+    var f = fontStr(it, 40);
+    var ok = true;
+    try { ok = document.fonts.check(f); } catch (e) { ok = true; }
+    if (ok || fontReq[f]) return;
+    fontReq[f] = true;
+    document.fonts.load(f, it.text || 'A').then(function () { render(); }, function () {});
+  }
+
+  // ---------- o'lchash va chizish ----------
+  function textWidth(c, s, spacing) {
+    if (!spacing) return c.measureText(s).width;
+    var t = 0;
+    for (var i = 0; i < s.length; i++) { t += c.measureText(s.charAt(i)).width; }
+    return t + spacing * Math.max(s.length - 1, 0);
+  }
+  function measureItem(c, it) {
+    if (it.type === 'text') {
+      c.font = fontStr(it);
+      var lines = String(it.text || '').split('\n');
+      var w = 0;
+      lines.forEach(function (ln) { var lw = textWidth(c, ln, it.spacing); if (lw > w) w = lw; });
+      it._lines = lines; it._w = Math.max(w, 10); it._h = Math.max(lines.length * it.size * 1.2, 10);
+    } else { it._w = it.w; it._h = it.h; }
+  }
+  function applyShadow(c, it, k) {
+    if (it.shadow) {
+      c.shadowColor = hexToRgba(it.sColor, it.sA); c.shadowBlur = it.sBlur * k;
+      c.shadowOffsetX = it.sX * k; c.shadowOffsetY = it.sY * k;
+    } else { noShadow(c); }
+  }
+  function noShadow(c) { c.shadowColor = 'rgba(0,0,0,0)'; c.shadowBlur = 0; c.shadowOffsetX = 0; c.shadowOffsetY = 0; }
+  function paint(c, it, w, h) {
+    if (it.grad) {
+      var g = c.createLinearGradient(-w / 2, 0, w / 2, 0);
+      g.addColorStop(0, it.fill); g.addColorStop(1, it.fill2);
+      return g;
+    }
+    return it.fill;
+  }
+  function emitText(c, s, x, y, spacing, stroke) {
+    c.textAlign = 'left';
+    if (!spacing) { if (stroke) c.strokeText(s, x, y); else c.fillText(s, x, y); return; }
+    var cx = x;
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (stroke) c.strokeText(ch, cx, y); else c.fillText(ch, cx, y);
+      cx += c.measureText(ch).width + spacing;
+    }
+  }
+  function drawText(c, it, k) {
+    c.font = fontStr(it); c.textBaseline = 'middle';
+    var lh = it.size * 1.2, y0 = -(it._lines.length - 1) * lh / 2;
+    var fillS = paint(c, it, it._w, it._h);
+    it._lines.forEach(function (ln, i) {
+      var y = y0 + i * lh, lw = textWidth(c, ln, it.spacing), sx = -lw / 2;
+      if (it.strokeW > 0) {
+        c.lineWidth = it.strokeW; c.lineJoin = 'round'; c.strokeStyle = it.stroke;
+        emitText(c, ln, sx, y, it.spacing, true);
+        noShadow(c);
+      }
+      c.fillStyle = fillS;
+      emitText(c, ln, sx, y, it.spacing, false);
+      if (it.strokeW > 0) applyShadow(c, it, k);
+    });
+  }
+  function shapePath(c, it) {
+    var w = it.w, h = it.h, hw = w / 2, hh = h / 2, i, a;
+    c.beginPath();
+    if (it.kind === 'circle') { c.ellipse(0, 0, hw, hh, 0, 0, Math.PI * 2); return; }
+    if (it.kind === 'triangle') { c.moveTo(0, -hh); c.lineTo(hw, hh); c.lineTo(-hw, hh); c.closePath(); return; }
+    if (it.kind === 'diamond') { c.moveTo(0, -hh); c.lineTo(hw, 0); c.lineTo(0, hh); c.lineTo(-hw, 0); c.closePath(); return; }
+    if (it.kind === 'hex') {
+      for (i = 0; i < 6; i++) { a = -Math.PI / 2 + i * Math.PI / 3; if (i) c.lineTo(Math.cos(a) * hw, Math.sin(a) * hh); else c.moveTo(Math.cos(a) * hw, Math.sin(a) * hh); }
+      c.closePath(); return;
+    }
+    if (it.kind === 'star') {
+      for (i = 0; i < 10; i++) { a = -Math.PI / 2 + i * Math.PI / 5; var r = i % 2 ? 0.45 : 1; if (i) c.lineTo(Math.cos(a) * r * hw, Math.sin(a) * r * hh); else c.moveTo(Math.cos(a) * r * hw, Math.sin(a) * r * hh); }
+      c.closePath(); return;
+    }
+    if (it.kind === 'heart') {
+      var P = function (X, Y) { return [(X - 50) / 100 * w, (Y - 45) / 90 * h]; };
+      var bez = function (a1, a2, b1, b2, c1, c2) { var p1 = P(a1, a2), p2 = P(b1, b2), p3 = P(c1, c2); c.bezierCurveTo(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1]); };
+      var s0 = P(50, 90); c.moveTo(s0[0], s0[1]);
+      bez(10, 60, 0, 35, 0, 25); bez(0, 10, 12, 0, 27, 0); bez(38, 0, 46, 6, 50, 14);
+      bez(54, 6, 62, 0, 73, 0); bez(88, 0, 100, 10, 100, 25); bez(100, 35, 90, 60, 50, 90);
+      c.closePath(); return;
+    }
+    var rad = it.kind === 'line' ? Math.min(hw, hh) : Math.min(it.radius || 0, hw, hh);
+    c.moveTo(-hw + rad, -hh); c.lineTo(hw - rad, -hh); c.arcTo(hw, -hh, hw, -hh + rad, rad);
+    c.lineTo(hw, hh - rad); c.arcTo(hw, hh, hw - rad, hh, rad);
+    c.lineTo(-hw + rad, hh); c.arcTo(-hw, hh, -hw, hh - rad, rad);
+    c.lineTo(-hw, -hh + rad); c.arcTo(-hw, -hh, -hw + rad, -hh, rad); c.closePath();
+  }
+  function drawShape(c, it) {
+    shapePath(c, it);
+    c.fillStyle = paint(c, it, it.w, it.h); c.fill();
+    if (it.strokeW > 0) { noShadow(c); c.lineWidth = it.strokeW; c.lineJoin = 'round'; c.strokeStyle = it.stroke; c.stroke(); }
+  }
+  function drawIcon(c, it) {
+    var d = ICONS[it.key];
+    if (!d) return;
+    var p = new Path2D(d);
+    c.scale(it.w / 24, it.h / 24); c.translate(-12, -12);
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    if (it.fillOn) { c.fillStyle = it.fill; c.fill(p); }
+    if (it.strokeW > 0) {
+      if (it.fillOn) noShadow(c);
+      c.lineWidth = it.strokeW * 24 / it.w; c.strokeStyle = it.stroke; c.stroke(p);
+    }
+  }
+  function drawImageItem(c, it) {
+    var im = imgCache[it.id];
+    if (!im) { im = new Image(); im.onload = function () { render(); }; im.src = it.href; imgCache[it.id] = im; return; }
+    if (!im.complete || !im.naturalWidth) return;
+    c.drawImage(im, -it.w / 2, -it.h / 2, it.w, it.h);
+  }
+  function drawItem(c, it, k) {
+    c.save();
+    c.translate(it.x, it.y); c.rotate(it.rot * Math.PI / 180); c.globalAlpha = clamp(it.opacity, 0, 1);
+    applyShadow(c, it, k);
+    if (it.type === 'text') drawText(c, it, k);
+    else if (it.type === 'shape') drawShape(c, it);
+    else if (it.type === 'icon') drawIcon(c, it);
+    else if (it.type === 'image') drawImageItem(c, it);
+    c.restore();
+  }
+  function drawDoc(c, d, k) {
+    c.clearRect(0, 0, d.w, d.h);
+    if (d.bg) { c.fillStyle = d.bg; c.fillRect(0, 0, d.w, d.h); }
+    d.items.forEach(function (it) { measureItem(c, it); ensureFont(it); drawItem(c, it, k); });
+  }
+
+  // ---------- tanlash belgilari ----------
+  function scaleFactor() { var r = canvas.getBoundingClientRect(); return (r && r.width) ? canvas.width / r.width : 1; }
+  function handleShape(c, x, y, round, sf) {
+    c.beginPath();
+    if (round) c.arc(x, y, 7 * sf, 0, Math.PI * 2); else c.rect(x - 6 * sf, y - 6 * sf, 12 * sf, 12 * sf);
+    c.fillStyle = '#FFFFFF'; c.fill(); c.lineWidth = 1.5 * sf; c.strokeStyle = '#2F6FED'; c.setLineDash([]); c.stroke();
+  }
+  function drawOverlay() {
+    var sf = scaleFactor(), it = selItem();
+    if (!doc.items.length) {
+      ctx.save(); ctx.fillStyle = 'rgba(22,35,59,0.45)'; ctx.font = (18 * sf) + 'px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('Boshlash uchun yuqoridan', doc.w / 2, doc.h / 2 - 14 * sf);
+      ctx.fillText('Matn, Shakl, Ikonka yoki Andoza tanlang', doc.w / 2, doc.h / 2 + 14 * sf);
+      ctx.restore();
+    }
+    if (guides.v || guides.h) {
+      ctx.save(); ctx.strokeStyle = '#E1477A'; ctx.lineWidth = 1 * sf; ctx.setLineDash([5 * sf, 4 * sf]);
+      if (guides.v) { ctx.beginPath(); ctx.moveTo(doc.w / 2, 0); ctx.lineTo(doc.w / 2, doc.h); ctx.stroke(); }
+      if (guides.h) { ctx.beginPath(); ctx.moveTo(0, doc.h / 2); ctx.lineTo(doc.w, doc.h / 2); ctx.stroke(); }
+      ctx.restore();
+    }
+    if (!it) return;
+    ctx.save(); ctx.translate(it.x, it.y); ctx.rotate(it.rot * Math.PI / 180);
+    var hw = it._w / 2 + 4 * sf, hh = it._h / 2 + 4 * sf;
+    ctx.lineWidth = 1.5 * sf; ctx.strokeStyle = '#2F6FED'; ctx.setLineDash([6 * sf, 4 * sf]); ctx.strokeRect(-hw, -hh, hw * 2, hh * 2); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(0, -hh); ctx.lineTo(0, -hh - 24 * sf); ctx.stroke();
+    handleShape(ctx, 0, -hh - 24 * sf, true, sf);
+    [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].forEach(function (p) { handleShape(ctx, p[0], p[1], false, sf); });
+    ctx.restore();
+  }
+  function renderNow() {
+    if (canvas.width !== doc.w) canvas.width = doc.w;
+    if (canvas.height !== doc.h) canvas.height = doc.h;
+    drawDoc(ctx, doc, 1);
+    drawOverlay();
+  }
+  function render() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(function () { rafPending = false; renderNow(); });
+  }
+
+  // ---------- sichqoncha / sensor ----------
+  function toLocal(it, p) {
+    var dx = p.x - it.x, dy = p.y - it.y, a = -it.rot * Math.PI / 180;
+    return { x: dx * Math.cos(a) - dy * Math.sin(a), y: dx * Math.sin(a) + dy * Math.cos(a) };
+  }
+  function hitItem(it, p) {
+    var l = toLocal(it, p);
+    return Math.abs(l.x) <= Math.max(it._w || 0, 16) / 2 && Math.abs(l.y) <= Math.max(it._h || 0, 16) / 2;
+  }
+  function hitHandle(it, p) {
+    var sf = p.sf || 1, l = toLocal(it, p), hw = it._w / 2 + 4 * sf, hh = it._h / 2 + 4 * sf, r = 12 * sf;
+    if (Math.hypot(l.x, l.y + hh + 24 * sf) <= r) return 'rotate';
+    var corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+    for (var i = 0; i < 4; i++) { if (Math.hypot(l.x - corners[i][0], l.y - corners[i][1]) <= r) return 'scale'; }
+    return null;
+  }
+  function pt(e) {
+    var r = canvas.getBoundingClientRect(), sx = r.width ? canvas.width / r.width : 1, sy = r.height ? canvas.height / r.height : 1;
+    return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy, sf: sx };
+  }
+  function select(id) { sel = id; syncPanel(); }
+  function onDown(p, e) {
+    var it = selItem();
+    if (it) {
+      var h = hitHandle(it, p);
+      if (h === 'rotate') { drag = { mode: 'rotate', id: it.id, moved: false }; return; }
+      if (h === 'scale') { drag = { mode: 'scale', id: it.id, moved: false, start: toLocal(it, p), size: it.size, w: it.w, h: it.h }; return; }
+    }
+    var hit = null;
+    for (var i = doc.items.length - 1; i >= 0; i--) { if (hitItem(doc.items[i], p)) { hit = doc.items[i]; break; } }
+    if (hit) { select(hit.id); drag = { mode: 'move', id: hit.id, sx: p.x, sy: p.y, ox: hit.x, oy: hit.y, moved: false }; }
+    else { select(null); drag = null; }
+    render();
+  }
+  function onMove(p, e) {
+    if (!drag) { updateCursor(p); return; }
+    var it = getItem(drag.id);
+    if (!it) return;
+    var shift = !!(e && e.shiftKey);
+    if (drag.mode === 'move') {
+      var nx = drag.ox + p.x - drag.sx, ny = drag.oy + p.y - drag.sy, tol = 6 * (p.sf || 1);
+      guides.v = Math.abs(nx - doc.w / 2) < tol; guides.h = Math.abs(ny - doc.h / 2) < tol;
+      if (guides.v) nx = doc.w / 2;
+      if (guides.h) ny = doc.h / 2;
+      it.x = nx; it.y = ny;
+    } else if (drag.mode === 'rotate') {
+      var a = Math.atan2(p.y - it.y, p.x - it.x) * 180 / Math.PI + 90;
+      if (shift) a = Math.round(a / 15) * 15;
+      it.rot = Math.round((((a % 360) + 360) % 360) * 10) / 10;
+    } else if (drag.mode === 'scale') {
+      var l = toLocal(it, p), s = drag.start;
+      var kx = Math.abs(l.x) / Math.max(Math.abs(s.x), 1), ky = Math.abs(l.y) / Math.max(Math.abs(s.y), 1);
+      var uniform = it.type !== 'shape' || shift;
+      if (uniform) {
+        var k = Math.hypot(l.x, l.y) / Math.max(Math.hypot(s.x, s.y), 1);
+        if (it.type === 'text') it.size = Math.round(clamp(drag.size * k, 8, 600));
+        else { it.w = Math.round(clamp(drag.w * k, 10, 3000)); it.h = Math.round(clamp(drag.h * k, 10, 3000)); }
+      } else { it.w = Math.round(clamp(drag.w * kx, 10, 3000)); it.h = Math.round(clamp(drag.h * ky, 10, 3000)); }
+    }
+    drag.moved = true;
+    render();
+  }
+  function onUp() {
+    var moved = drag && drag.moved;
+    drag = null; guides.v = false; guides.h = false;
+    if (moved) { syncPanel(); snapshot(); }
+    render();
+  }
+  function updateCursor(p) {
+    var it = selItem(), c = 'default';
+    if (it) { var h = hitHandle(it, p); if (h === 'rotate') c = 'grab'; else if (h === 'scale') c = 'nwse-resize'; }
+    if (c === 'default') { for (var i = doc.items.length - 1; i >= 0; i--) { if (hitItem(doc.items[i], p)) { c = 'move'; break; } } }
+    canvas.style.cursor = c;
+  }
+  canvas.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (x) {} }
+    onDown(pt(e), e);
+  });
+  canvas.addEventListener('pointermove', function (e) { onMove(pt(e), e); });
+  canvas.addEventListener('pointerup', function () { onUp(); });
+  canvas.addEventListener('pointercancel', function () { onUp(); });
+
+  // ---------- tarix (bekor qilish) ----------
+  function serialize() {
+    return JSON.parse(JSON.stringify(doc, function (k, v) { return k.charAt(0) === '_' ? undefined : v; }));
+  }
+  function updateUndo() { el('lg-undo').disabled = hpos <= 0; el('lg-redo').disabled = hpos >= hist.length - 1; }
+  function saveDraftSoon() {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(function () {
+      if (projectId) return;
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ doc: serialize(), title: el('lg-title').value })); } catch (e) {}
+    }, 600);
+  }
+  function snapshot() {
+    var s = JSON.stringify(serialize());
+    if (hist[hpos] === s) return;
+    hist = hist.slice(0, hpos + 1); hist.push(s);
+    if (hist.length > 80) hist.shift();
+    hpos = hist.length - 1;
+    updateUndo(); saveDraftSoon();
+  }
+  function normalize(o) {
+    var d = { w: clamp(parseInt(o.w, 10) || 800, 100, 4000), h: clamp(parseInt(o.h, 10) || 800, 100, 4000), bg: typeof o.bg === 'string' ? o.bg : null, items: [] };
+    (Array.isArray(o.items) ? o.items : []).forEach(function (it) {
+      if (!it || typeof it !== 'object') return;
+      if (['text', 'shape', 'icon', 'image'].indexOf(it.type) < 0) return;
+      if (typeof it.id !== 'string') it.id = uid();
+      var m = /^i(\d+)$/.exec(it.id);
+      if (m) idCounter = Math.max(idCounter, parseInt(m[1], 10) + 1);
+      d.items.push(it);
+    });
+    return d;
+  }
+  function restore(s) {
+    doc = normalize(JSON.parse(s));
+    if (!getItem(sel)) sel = null;
+    syncDocControls(); syncPanel(); render();
+  }
+  function undo() { if (hpos > 0) { hpos--; restore(hist[hpos]); updateUndo(); saveDraftSoon(); } }
+  function redo() { if (hpos < hist.length - 1) { hpos++; restore(hist[hpos]); updateUndo(); saveDraftSoon(); } }
+  function loadDoc(o) {
+    doc = normalize(o); sel = null;
+    hist = [JSON.stringify(serialize())]; hpos = 0;
+    syncDocControls(); syncPanel(); updateUndo(); render();
+  }
+
+  // ---------- amallar ----------
+  function layer(op) {
+    var it = selItem();
+    if (!it) return;
+    var a = doc.items, i = a.indexOf(it);
+    if (op === 'up' && i < a.length - 1) { a[i] = a[i + 1]; a[i + 1] = it; }
+    else if (op === 'down' && i > 0) { a[i] = a[i - 1]; a[i - 1] = it; }
+    else if (op === 'top') { a.splice(i, 1); a.push(it); }
+    else if (op === 'bottom') { a.splice(i, 1); a.unshift(it); }
+    render(); snapshot();
+  }
+  function duplicate() {
+    var it = selItem();
+    if (!it) return;
+    var c = JSON.parse(JSON.stringify(it, function (k, v) { return k.charAt(0) === '_' ? undefined : v; }));
+    c.id = uid(); c.x += 24; c.y += 24;
+    addItem(c);
+  }
+  function removeSel() {
+    var it = selItem();
+    if (!it) return;
+    doc.items.splice(doc.items.indexOf(it), 1); sel = null;
+    syncPanel(); render(); snapshot();
+  }
+  function addImageFile(file) {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { status('Rasm juda katta (8 MB gacha)', true); return; }
+    var fr = new FileReader();
+    fr.onload = function () {
+      var im = new Image();
+      im.onload = function () {
+        var s = Math.min(1, 700 / Math.max(im.naturalWidth, im.naturalHeight));
+        var c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(im.naturalWidth * s)); c.height = Math.max(1, Math.round(im.naturalHeight * s));
+        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+        var jpeg = file.type === 'image/jpeg';
+        var href = c.toDataURL(jpeg ? 'image/jpeg' : 'image/png', 0.88);
+        var fit = Math.min(1, 420 / Math.max(c.width, c.height));
+        addItem(base('image', { href: href, w: Math.round(c.width * fit), h: Math.round(c.height * fit) }));
+      };
+      im.onerror = function () { status('Bu rasm formatini oqib bolmadi', true); };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  }
+
+  // ---------- andozalar ----------
+  var TEMPLATES = [
+    { name: 'Doira va matn', build: function () { var x = doc.w / 2, y = doc.h / 2; return { bg: null, items: [
+      newShape('circle', { x: x, y: y, w: 420, h: 420, fill: '#2F6FED' }),
+      newText({ x: x, y: y - 10, text: 'LOGO', size: 130, fill: '#FFFFFF' }),
+      newText({ x: x, y: y + 95, text: 'kompaniya nomi', size: 34, weight: 400, fill: '#DCE8FF' })] }; } },
+    { name: 'Yulduzli belgi', build: function () { var x = doc.w / 2, y = doc.h / 2; return { bg: null, items: [
+      newShape('star', { x: x, y: y - 60, w: 300, h: 300, fill: '#F5B301', grad: true, fill2: '#FF7A00' }),
+      newText({ x: x, y: y + 150, text: 'BRAND', size: 90, fill: '#16233B', spacing: 8 })] }; } },
+    { name: 'Gradient yozuv', build: function () { var x = doc.w / 2, y = doc.h / 2; return { bg: null, items: [
+      newText({ x: x, y: y - 10, text: 'Studio', size: 170, font: 'Pacifico', weight: 400, grad: true, fill: '#2F6FED', fill2: '#C86DD7' }),
+      newShape('line', { x: x, y: y + 90, w: 360, h: 8, fill: '#2F6FED', grad: true, fill2: '#C86DD7' })] }; } },
+    { name: 'Monogram', build: function () { var x = doc.w / 2, y = doc.h / 2; return { bg: null, items: [
+      newShape('rect', { x: x, y: y, w: 380, h: 380, fill: '#16233B', radius: 90 }),
+      newText({ x: x, y: y, text: 'A', size: 260, font: 'Playfair Display', fill: '#FFFFFF' })] }; } },
+    { name: 'Ikonka va matn', build: function () { var x = doc.w / 2, y = doc.h / 2; return { bg: null, items: [
+      newIcon('bolt', { x: x, y: y - 70, w: 220, h: 220, stroke: '#2F6FED', strokeW: 1.6, fillOn: true, fill: '#7DB2FF' }),
+      newText({ x: x, y: y + 130, text: 'Energiya', size: 96, font: 'Montserrat', fill: '#16233B' })] }; } },
+    { name: 'Qora fon', build: function () { var x = doc.w / 2, y = doc.h / 2; return { bg: '#0E1A33', items: [
+      newText({ x: x, y: y - 10, text: 'NIGHT', size: 160, font: 'Bebas Neue', weight: 400, fill: '#FFFFFF', spacing: 14, shadow: true, sColor: '#2F6FED', sA: 0.9, sBlur: 30, sX: 0, sY: 0 }),
+      newText({ x: x, y: y + 100, text: 'studio', size: 40, weight: 400, fill: '#7DB2FF', spacing: 10 })] }; } }
+  ];
+  function applyTemplate(i) {
+    var t = TEMPLATES[i];
+    if (!t) return;
+    if (doc.items.length && !window.confirm('Joriy ish almashtiriladi. Davom etamizmi?')) return;
+    var r = t.build();
+    doc.items = r.items; doc.bg = r.bg; sel = null;
+    r.items.forEach(ensureFont);
+    syncDocControls(); syncPanel(); render(); snapshot();
+  }
+
+  // ---------- panel ----------
+  var panel = el('lg-panel');
+  function condOk(it, c) {
+    if (c === 'grad') return !!it.grad;
+    if (c === 'rect') return it.type === 'shape' && it.kind === 'rect';
+    if (c === 'shadow') return !!it.shadow;
+    return true;
+  }
+  function syncPanel() {
+    var it = selItem();
+    el('lg-empty').classList.toggle('lg-hide', !!it);
+    el('lg-props').classList.toggle('lg-hide', !it);
+    if (!it) return;
+    panel.querySelectorAll('[data-for]').forEach(function (n) {
+      var types = n.getAttribute('data-for').split(' '), cond = n.getAttribute('data-cond');
+      var show = types.indexOf(it.type) >= 0 && (!cond || condOk(it, cond));
+      n.classList.toggle('lg-hide', !show);
+    });
+    panel.querySelectorAll('[data-prop]').forEach(function (n) {
+      var prop = n.getAttribute('data-prop');
+      if (it[prop] === undefined) return;
+      if (n.type === 'checkbox') n.checked = !!it[prop]; else n.value = it[prop];
+    });
+    el('lg-fill-label').textContent = it.type === 'text' ? 'Matn rangi' : (it.type === 'icon' ? 'Ichini boyash rangi' : 'Toldirish rangi');
+  }
+  panel.querySelectorAll('[data-prop]').forEach(function (n) {
+    var prop = n.getAttribute('data-prop'), kind = n.getAttribute('data-k') || 'text';
+    var instant = (n.type === 'checkbox' || n.tagName === 'SELECT');
+    function apply() {
+      var it = selItem();
+      if (!it) return;
+      var v;
+      if (kind === 'bool') v = n.checked;
+      else if (kind === 'num') { v = parseFloat(n.value); if (isNaN(v)) return; }
+      else v = n.value;
+      it[prop] = v;
+      ensureFont(it);
+      render();
+      if (prop === 'grad' || prop === 'shadow') syncPanel();
+    }
+    n.addEventListener(instant ? 'change' : 'input', function () { apply(); if (instant) snapshot(); });
+    if (!instant) n.addEventListener('change', function () { snapshot(); });
+  });
+
+  // ---------- hujjat sozlamalari ----------
+  function syncDocControls() {
+    var sizeSel = el('lg-size'), v = doc.w + 'x' + doc.h, found = false;
+    for (var i = 0; i < sizeSel.options.length; i++) { if (sizeSel.options[i].value === v) found = true; }
+    if (!found) { var o = document.createElement('option'); o.value = v; o.textContent = 'Maxsus ' + v; sizeSel.appendChild(o); }
+    sizeSel.value = v;
+    el('lg-bg-on').checked = !!doc.bg;
+    if (doc.bg) el('lg-bg').value = doc.bg;
+  }
+  el('lg-size').addEventListener('change', function () {
+    var p = this.value.split('x');
+    doc.w = parseInt(p[0], 10); doc.h = parseInt(p[1], 10);
+    render(); snapshot();
+  });
+  el('lg-bg-on').addEventListener('change', function () { doc.bg = this.checked ? el('lg-bg').value : null; render(); snapshot(); });
+  el('lg-bg').addEventListener('input', function () { if (el('lg-bg-on').checked) { doc.bg = this.value; render(); } });
+  el('lg-bg').addEventListener('change', function () { if (el('lg-bg-on').checked) snapshot(); });
+
+  // ---------- menyular ----------
+  FONTS.forEach(function (f) { var o = document.createElement('option'); o.value = f; o.textContent = f; el('lg-font').appendChild(o); });
+  SHAPES.forEach(function (s) { var b = document.createElement('button'); b.type = 'button'; b.className = 'lg-opt'; b.setAttribute('data-shape', s[0]); b.textContent = s[1]; el('pop-shape').appendChild(b); });
+  Object.keys(ICONS).forEach(function (k) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'lg-icon'; b.setAttribute('data-icon', k); b.title = k;
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="' + ICONS[k] + '"/></svg>';
+    el('pop-icon').appendChild(b);
+  });
+  TEMPLATES.forEach(function (t, i) { var b = document.createElement('button'); b.type = 'button'; b.className = 'lg-opt'; b.setAttribute('data-tpl', String(i)); b.textContent = t.name; el('pop-tpl').appendChild(b); });
+  SIZES.forEach(function (s) { var o = document.createElement('option'); o.value = s[0]; o.textContent = s[1]; el('lg-size').appendChild(o); });
+  function closePops() { document.querySelectorAll('.lg-pop').forEach(function (p) { p.classList.remove('open'); }); }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    var pop = t.closest ? t.closest('[data-pop]') : null;
+    if (pop) { var id = pop.getAttribute('data-pop'), wasOpen = el(id).classList.contains('open'); closePops(); if (!wasOpen) el(id).classList.add('open'); return; }
+    var b;
+    if ((b = t.closest('[data-add]'))) { closePops(); addItem(newText()); return; }
+    if ((b = t.closest('[data-shape]'))) { closePops(); addItem(newShape(b.getAttribute('data-shape'))); return; }
+    if ((b = t.closest('[data-icon]'))) { closePops(); addItem(newIcon(b.getAttribute('data-icon'))); return; }
+    if ((b = t.closest('[data-tpl]'))) { closePops(); applyTemplate(parseInt(b.getAttribute('data-tpl'), 10)); return; }
+    if ((b = t.closest('[data-layer]'))) { layer(b.getAttribute('data-layer')); return; }
+    if (!t.closest('.lg-menu')) closePops();
+  });
+  el('lg-image').addEventListener('change', function () { addImageFile(this.files && this.files[0]); this.value = ''; });
+  el('lg-undo').addEventListener('click', undo);
+  el('lg-redo').addEventListener('click', redo);
+  el('lg-dup').addEventListener('click', duplicate);
+  el('lg-del').addEventListener('click', removeSel);
+
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+    var mod = e.ctrlKey || e.metaKey, key = (e.key || '').toLowerCase();
+    if (mod && key === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+    if (mod && key === 'y') { e.preventDefault(); redo(); return; }
+    if (mod && key === 'd') { e.preventDefault(); duplicate(); return; }
+    var it = selItem();
+    if (!it) return;
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeSel(); return; }
+    var step = e.shiftKey ? 10 : 1, moved = true;
+    if (e.key === 'ArrowLeft') it.x -= step; else if (e.key === 'ArrowRight') it.x += step;
+    else if (e.key === 'ArrowUp') it.y -= step; else if (e.key === 'ArrowDown') it.y += step; else moved = false;
+    if (moved) { e.preventDefault(); render(); clearTimeout(keyTimer); keyTimer = setTimeout(snapshot, 400); }
+  });
+
+  // ---------- eksport, saqlash ----------
+  function loadImg(it) {
+    return new Promise(function (res) {
+      var im = imgCache[it.id];
+      if (im && im.complete && im.naturalWidth) return res();
+      if (!im) { im = new Image(); imgCache[it.id] = im; im.src = it.href; }
+      im.onload = function () { res(); }; im.onerror = function () { res(); };
+    });
+  }
+  function whenReady(cb) {
+    var pending = [], fonts = {};
+    doc.items.forEach(function (it) { if (it.type === 'text') fonts[fontStr(it, 40)] = it.text || 'A'; if (it.type === 'image') pending.push(loadImg(it)); });
+    if (document.fonts && document.fonts.load) {
+      Object.keys(fonts).forEach(function (f) { pending.push(document.fonts.load(f, fonts[f]).catch(function () {})); });
+    }
+    var done = false;
+    function fin() { if (!done) { done = true; cb(); } }
+    Promise.all(pending).then(fin, fin);
+    setTimeout(fin, 3000);
+  }
+  function slug(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'logotip'; }
+  function exportPng() {
+    var scale = parseInt(el('lg-scale').value, 10) || 2;
+    whenReady(function () {
+      var c = document.createElement('canvas');
+      c.width = doc.w * scale; c.height = doc.h * scale;
+      var x = c.getContext('2d');
+      x.setTransform(scale, 0, 0, scale, 0, 0);
+      drawDoc(x, doc, scale);
+      c.toBlob(function (b) {
+        if (!b) { status('Rasm yaratib bolmadi', true); return; }
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(b); a.download = slug(el('lg-title').value) + '.png';
+        document.body.appendChild(a); a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+      }, 'image/png');
+    });
+  }
+  function makeThumb(cb) {
+    whenReady(function () {
+      var s = Math.min(1, 240 / Math.max(doc.w, doc.h));
+      var c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(doc.w * s)); c.height = Math.max(1, Math.round(doc.h * s));
+      var x = c.getContext('2d');
+      x.setTransform(s, 0, 0, s, 0, 0);
+      drawDoc(x, doc, s);
+      cb(c.toDataURL('image/png'));
+    });
+  }
+  function jsonRes(res) { return res.json().catch(function () { return {}; }).then(function (r) { return { ok: res.ok, r: r }; }); }
+  function save() {
+    var title = (el('lg-title').value || '').trim() || 'Nomsiz logotip';
+    makeThumb(function (thumb) {
+      fetch('/api/projects/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: projectId, kind: 'logo', title: title, data: JSON.stringify(serialize()), thumb: thumb }) })
+        .then(jsonRes).then(function (o) {
+          if (o.ok) {
+            projectId = o.r.id;
+            try { window.history.replaceState(null, '', '/vositalar/logotip?id=' + projectId); } catch (e) {}
+            try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+            status('Saqlandi', false);
+          } else { status(o.r.detail || 'Saqlab bolmadi', true); }
+        }).catch(function () { status('Internet aloqasida muammo', true); });
+    });
+  }
+  function openList() {
+    var box = el('lg-list');
+    el('lg-modal').classList.add('open');
+    box.textContent = 'Yuklanmoqda...';
+    fetch('/api/projects?kind=logo').then(jsonRes).then(function (o) {
+      box.textContent = '';
+      var items = (o.r && o.r.items) || [];
+      if (!o.ok || !items.length) { box.textContent = o.ok ? 'Hali saqlangan logotip yoq.' : (o.r.detail || 'Xatolik'); return; }
+      items.forEach(function (p) {
+        var card = document.createElement('div'); card.className = 'lg-card';
+        var img = document.createElement('img'); img.alt = ''; if (p.thumb) img.src = p.thumb;
+        var t = document.createElement('div'); t.className = 'lg-card-t'; t.textContent = p.title;
+        var s = document.createElement('div'); s.className = 'lg-card-s'; s.textContent = p.updated;
+        var row = document.createElement('div'); row.className = 'lg-row';
+        var open = document.createElement('button'); open.type = 'button'; open.className = 'lg-btn'; open.textContent = 'Ochish';
+        open.addEventListener('click', function () { window.location.href = '/vositalar/logotip?id=' + p.id; });
+        var del = document.createElement('button'); del.type = 'button'; del.className = 'lg-btn'; del.style.color = '#E1477A'; del.textContent = 'Ochirish';
+        del.addEventListener('click', function () {
+          if (!window.confirm('Bu logotipni ochirasizmi?')) return;
+          fetch('/api/projects/' + p.id + '/delete?kind=logo', { method: 'POST' }).then(function () { if (p.id === projectId) projectId = 0; openList(); });
+        });
+        row.appendChild(open); row.appendChild(del);
+        card.appendChild(img); card.appendChild(t); card.appendChild(s); card.appendChild(row);
+        box.appendChild(card);
+      });
+    }).catch(function () { box.textContent = 'Internet aloqasida muammo'; });
+  }
+  el('lg-save').addEventListener('click', save);
+  el('lg-export').addEventListener('click', exportPng);
+  el('lg-mine').addEventListener('click', openList);
+  el('lg-modal-close').addEventListener('click', function () { el('lg-modal').classList.remove('open'); });
+  el('lg-title').addEventListener('input', saveDraftSoon);
+
+  // ---------- boshlash ----------
+  function start() {
+    if (PROJECT_ID) {
+      fetch('/api/projects/' + PROJECT_ID + '?kind=logo').then(jsonRes).then(function (o) {
+        if (o.ok) { el('lg-title').value = o.r.title || ''; loadDoc(JSON.parse(o.r.data)); doc.items.forEach(ensureFont); render(); }
+        else { status(o.r.detail || 'Loyiha topilmadi', true); loadDoc(doc); }
+      }).catch(function () { loadDoc(doc); });
+      return;
+    }
+    try {
+      var raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) { var o = JSON.parse(raw); if (o && o.doc) { el('lg-title').value = o.title || ''; loadDoc(o.doc); doc.items.forEach(ensureFont); render(); return; } }
+    } catch (e) {}
+    loadDoc(doc);
+  }
+  start();
+
+  window.__lg = {
+    doc: function () { return doc; }, sel: function () { return sel; }, hist: function () { return hist.length; },
+    addText: function (x) { return addItem(newText(x)); }, addShape: function (k, x) { return addItem(newShape(k, x)); },
+    addIcon: function (k, x) { return addItem(newIcon(k, x)); },
+    onDown: onDown, onMove: onMove, onUp: onUp, undo: undo, redo: redo, layer: layer, duplicate: duplicate, removeSel: removeSel,
+    renderNow: renderNow, serialize: serialize, loadDoc: loadDoc, applyTemplate: applyTemplate, select: select, save: save,
+    templates: function () { return TEMPLATES.length; }
+  };
+})();
+</script>
+"""
 
 
 # ============================================================
@@ -3590,14 +5013,17 @@ def create_thanks(form: ThanksForm, request: Request):
 def view_page(slug: str):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("SELECT template_type, data FROM pages WHERE slug = ?", (slug,))
+    cur.execute("SELECT template_type, data, hidden FROM pages WHERE slug = ?", (slug,))
     row = cur.fetchone()
     conn.close()
 
     if not row:
         raise HTTPException(status_code=404, detail="Bunday noma topilmadi")
 
-    template_type, data_json = row
+    if row[2]:
+        return HTMLResponse(HIDDEN_PAGE_HTML, status_code=404)
+
+    template_type, data_json = row[0], row[1]
     data = json.loads(data_json)
 
     if template_type == "toy":
